@@ -36,6 +36,53 @@ export interface ExecuteResult {
 }
 
 /** Che các token dạng Bearer/token trong string trước khi ghi log. */
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function retryDelayMs(attempt: number): number {
+  return Math.min(250 * 2 ** attempt, 2_000);
+}
+
+async function fetchStepWithPolicy(
+  httpFetch: typeof fetch,
+  url: string,
+  init: RequestInit,
+  policy: { timeoutMs: number; retries: number; maxResponseBytes: number },
+): Promise<{ status: number; ok: boolean; text: string }> {
+  let lastError: unknown;
+  for (let attempt = 0; attempt <= policy.retries; attempt++) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), policy.timeoutMs);
+    try {
+      const resp = await httpFetch(url, { ...init, signal: controller.signal });
+      const len = resp.headers?.get?.('content-length');
+      if (len && Number(len) > policy.maxResponseBytes) {
+        throw new Error(`Response vượt quá giới hạn ${policy.maxResponseBytes} bytes`);
+      }
+      const text = await resp.text();
+      if (Buffer.byteLength(text, 'utf8') > policy.maxResponseBytes) {
+        throw new Error(`Response vượt quá giới hạn ${policy.maxResponseBytes} bytes`);
+      }
+      if ((resp.status === 429 || resp.status >= 500) && attempt < policy.retries) {
+        await sleep(retryDelayMs(attempt));
+        continue;
+      }
+      return { status: resp.status, ok: resp.ok, text };
+    } catch (e: any) {
+      lastError = e?.name === 'AbortError' ? new Error(`HTTP timeout sau ${policy.timeoutMs}ms`) : e;
+      if (attempt < policy.retries) {
+        await sleep(retryDelayMs(attempt));
+        continue;
+      }
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  throw lastError;
+}
+
 function redact(s: string): string {
   if (!s) return s;
   return s
@@ -52,6 +99,11 @@ export async function executeFlow(
 ): Promise<ExecuteResult> {
   const { ownerId, template } = opts;
   const runtimeInputs = opts.runtimeInputs ?? {};
+  const httpPolicy = {
+    timeoutMs: ctx.config.httpTimeoutMs,
+    retries: ctx.config.httpRetries,
+    maxResponseBytes: ctx.config.httpMaxResponseBytes,
+  };
 
   // 1. Khởi tạo inputs từ nguồn.
   const inputs: Record<string, unknown> = {};
@@ -89,13 +141,13 @@ export async function executeFlow(
     let errMsg: string | undefined;
 
     try {
-      const resp = await httpFetch(url, {
+      const resp = await fetchStepWithPolicy(httpFetch, url, {
         method: step.method,
         headers,
         body: ['GET', 'HEAD'].includes(step.method.toUpperCase()) ? undefined : body,
-      });
+      }, httpPolicy);
       status = resp.status;
-      responseText = await resp.text();
+      responseText = resp.text;
       success = resp.ok;
       try {
         parsed = responseText ? JSON.parse(responseText) : null;

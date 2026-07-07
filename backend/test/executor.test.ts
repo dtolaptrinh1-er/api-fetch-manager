@@ -89,6 +89,69 @@ describe('executeFlow — sequential 2-step', () => {
     expect(ex.length).toBeGreaterThanOrEqual(2);
   });
 
+
+
+  it('retry HTTP 5xx rồi thành công theo policy', async () => {
+    const tpl: FetchTemplate = {
+      id: 'flow-retry',
+      name: 'retry',
+      service: 'example.com',
+      business: 'retry',
+      stopOnError: true,
+      steps: [{ id: 's1', method: 'GET', urlTemplate: 'https://api.example.com/flaky' }],
+      createdAt: 0,
+      updatedAt: 0,
+    };
+    ctx.config.httpRetries = 1;
+    let calls = 0;
+    const fetchImpl = (async () => {
+      calls++;
+      const status = calls === 1 ? 503 : 200;
+      return {
+        ok: status === 200,
+        status,
+        headers: new Headers(),
+        text: async () => JSON.stringify({ ok: true, calls }),
+      } as any;
+    }) as typeof fetch;
+
+    const res = await executeFlow(ctx, { ownerId, template: tpl }, fetchImpl);
+
+    expect(res.ok).toBe(true);
+    expect(calls).toBe(2);
+    expect(res.steps[0].status).toBe(200);
+  });
+
+  it('timeout HTTP được ghi thành lỗi step', async () => {
+    const tpl: FetchTemplate = {
+      id: 'flow-timeout',
+      name: 'timeout',
+      service: 'example.com',
+      business: 'timeout',
+      stopOnError: true,
+      steps: [{ id: 's1', method: 'GET', urlTemplate: 'https://api.example.com/slow' }],
+      createdAt: 0,
+      updatedAt: 0,
+    };
+    ctx.config.httpRetries = 0;
+    ctx.config.httpTimeoutMs = 5;
+    const fetchImpl = (async (_url: string, init?: RequestInit) => {
+      await new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () => {
+          const e = new Error('aborted');
+          e.name = 'AbortError';
+          reject(e);
+        });
+      });
+      throw new Error('unreachable');
+    }) as typeof fetch;
+
+    const res = await executeFlow(ctx, { ownerId, template: tpl }, fetchImpl);
+
+    expect(res.ok).toBe(false);
+    expect(res.steps[0].error).toContain('timeout');
+  });
+
   it('stopOnError: step lỗi → dừng + ghi log, không log plaintext token', async () => {
     const tpl: FetchTemplate = {
       id: 'flow2',

@@ -17,6 +17,9 @@ function config(): AppConfig {
     dataDir: '.data-test',
     encryptionKey: Buffer.alloc(32, 1),
     adminToken: 'admin-token',
+    httpTimeoutMs: 15_000,
+    httpRetries: 2,
+    httpMaxResponseBytes: 1_048_576,
     firebaseServiceAccount: serviceAccountBase64(),
     rtdb: {
       keys: 'https://keys.example.firebaseio.com',

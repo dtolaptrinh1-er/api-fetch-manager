@@ -183,6 +183,20 @@ class FileDb implements Db {
 /* FirebaseDb — Firebase RTDB REST adapter (5 DB/app URL độc lập)      */
 /* ------------------------------------------------------------------ */
 
+
+interface HttpPolicy {
+  timeoutMs: number;
+  retries: number;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function retryDelayMs(attempt: number): number {
+  return Math.min(250 * 2 ** attempt, 2_000);
+}
+
 interface FirebaseServiceAccount {
   client_email: string;
   private_key: string;
@@ -246,7 +260,7 @@ class FirebaseTokenProvider {
 }
 
 class FirebaseDb implements Db {
-  constructor(public name: DbName, private databaseUrl: string, private tokens: FirebaseTokenProvider) {
+  constructor(public name: DbName, private databaseUrl: string, private tokens: FirebaseTokenProvider, private policy: HttpPolicy) {
     if (!databaseUrl) throw new Error(`[rtdb] Thiếu RTDB URL cho database ${name}.`);
     this.databaseUrl = databaseUrl.replace(/\/+$/, '');
   }
@@ -259,16 +273,37 @@ class FirebaseDb implements Db {
   }
 
   private async request<T>(method: string, path: string, body?: unknown, params?: Record<string, string>): Promise<T> {
-    const token = await this.tokens.getAccessToken();
-    const res = await fetch(this.url(path, params), {
-      method,
-      headers: { authorization: `Bearer ${token}`, ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
-    const text = await res.text();
-    const parsed = text ? JSON.parse(text) : null;
-    if (!res.ok) throw new Error(`[rtdb:${this.name}] ${method} ${path} failed (${res.status}): ${text || res.statusText}`);
-    return parsed as T;
+    let lastError: unknown;
+    for (let attempt = 0; attempt <= this.policy.retries; attempt++) {
+      const token = await this.tokens.getAccessToken();
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.policy.timeoutMs);
+      try {
+        const res = await fetch(this.url(path, params), {
+          method,
+          signal: controller.signal,
+          headers: { authorization: `Bearer ${token}`, ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+          body: body === undefined ? undefined : JSON.stringify(body),
+        });
+        const text = await res.text();
+        const parsed = text ? JSON.parse(text) : null;
+        if ((res.status === 429 || res.status >= 500) && attempt < this.policy.retries) {
+          await sleep(retryDelayMs(attempt));
+          continue;
+        }
+        if (!res.ok) throw new Error(`[rtdb:${this.name}] ${method} ${path} failed (${res.status}): ${text || res.statusText}`);
+        return parsed as T;
+      } catch (e: any) {
+        lastError = e?.name === 'AbortError' ? new Error(`[rtdb:${this.name}] ${method} ${path} timeout sau ${this.policy.timeoutMs}ms`) : e;
+        if (attempt < this.policy.retries) {
+          await sleep(retryDelayMs(attempt));
+          continue;
+        }
+      } finally {
+        clearTimeout(timer);
+      }
+    }
+    throw lastError;
   }
 
   async get<T>(path: string) {
@@ -312,6 +347,7 @@ const DB_NAMES: DbName[] = ['keys', 'history', 'logs', 'issues', 'variables'];
 
 export function createRtdb(config: AppConfig): RtdbRegistry {
   const firebaseTokens = config.storageMode === 'firebase' ? new FirebaseTokenProvider(parseFirebaseServiceAccount(config.firebaseServiceAccount)) : null;
+  const httpPolicy = { timeoutMs: config.httpTimeoutMs, retries: config.httpRetries };
   const firebaseUrls: Record<DbName, string | undefined> = {
     keys: config.rtdb.keys,
     history: config.rtdb.history,
@@ -325,7 +361,7 @@ export function createRtdb(config: AppConfig): RtdbRegistry {
       case 'file':
         return new FileDb(name, config.dataDir);
       case 'firebase':
-        return new FirebaseDb(name, firebaseUrls[name]!, firebaseTokens!);
+        return new FirebaseDb(name, firebaseUrls[name]!, firebaseTokens!, httpPolicy);
       case 'memory':
       default:
         return new MemoryDb(name);

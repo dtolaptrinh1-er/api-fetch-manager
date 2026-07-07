@@ -1,9 +1,9 @@
 /** api.ts — Client gọi backend. Response chuẩn { ok, data?, error? }. */
 
 const BASE = '/api';
-const TOKEN_STORAGE_KEY = 'api-fetch-manager.adminToken';
+export const TOKEN_STORAGE_KEY = 'api-fetch-manager.adminToken';
 
-function getAdminToken(): string | undefined {
+export function getAdminToken(): string | undefined {
   const fromEnv = import.meta.env.VITE_API_FETCH_MANAGER_ADMIN_TOKEN as string | undefined;
   const fromStorage = typeof window === 'undefined' ? undefined : window.localStorage.getItem(TOKEN_STORAGE_KEY) ?? undefined;
   return fromStorage || fromEnv || undefined;

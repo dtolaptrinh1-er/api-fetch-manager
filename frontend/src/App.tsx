@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { AppProvider, useApp } from './lib/appStore';
 import { UIProvider } from './components/ui';
 import { Button } from './components/Button';
+import { Modal } from './components/Modal';
+import { Field, Input } from './components/Field';
 import { Icon } from './components/Icon';
 import { InspectMode } from './features/inspect/InspectMode';
 import { CredentialsPage } from './pages/CredentialsPage';
@@ -10,6 +12,8 @@ import { HistoryPage } from './pages/HistoryPage';
 import { IssuesPage } from './pages/IssuesPage';
 import { ExtractionsPage } from './pages/ExtractionsPage';
 import { VariablesPage } from './pages/VariablesPage';
+import { api, getAdminToken } from './api/api';
+import { useUI } from './components/ui';
 
 type Page = 'credentials' | 'builder' | 'history' | 'issues' | 'extractions' | 'variables';
 
@@ -24,8 +28,26 @@ const NAV: { id: Page; label: string; icon: React.ReactNode; tip: string }[] = [
 
 function Shell() {
   const { theme, toggleTheme, owners, ownerId, setOwnerId, inspect, setInspect } = useApp();
+  const ui = useUI();
   const [page, setPage] = useState<Page>('credentials');
   const [drawer, setDrawer] = useState(false);
+  const [tokenOpen, setTokenOpen] = useState(false);
+  const [tokenDraft, setTokenDraft] = useState(() => getAdminToken() ?? '');
+  const hasToken = Boolean(getAdminToken());
+
+  const saveToken = () => {
+    const trimmed = tokenDraft.trim();
+    if (!trimmed) {
+      api.clearAdminToken();
+      setTokenDraft('');
+      ui.notify({ kind: 'warning', title: 'Đã xoá token', message: 'Frontend sẽ không gửi Authorization header cho các API cần bảo vệ.' });
+    } else {
+      api.setAdminToken(trimmed);
+      setTokenDraft(trimmed);
+      ui.notify({ kind: 'success', title: 'Đã lưu token', message: 'Các request API tiếp theo sẽ gửi Authorization: Bearer <token>.' });
+    }
+    setTokenOpen(false);
+  };
 
   return (
     <div className="app">
@@ -43,6 +65,13 @@ function Shell() {
           {owners.length === 0 && <option value="">(chưa có owner)</option>}
           {owners.map((o) => <option key={o.id} value={o.id}>{o.email}</option>)}
         </select>
+        <Button
+          iconOnly
+          variant={hasToken ? 'primary' : 'ghost'}
+          icon={Icon.key({})}
+          tooltip={hasToken ? 'Admin token đã được cấu hình cho API request' : 'Nhập admin token để UI gửi Authorization header'}
+          onClick={() => { setTokenDraft(getAdminToken() ?? ''); setTokenOpen(true); }}
+        />
         <Button
           iconOnly
           variant={inspect ? 'primary' : 'ghost'}
@@ -85,6 +114,32 @@ function Shell() {
           </div>
         </main>
       </div>
+
+
+      {tokenOpen && (
+        <Modal
+          title="Admin API token"
+          onClose={() => setTokenOpen(false)}
+          variant="info"
+          footer={
+            <>
+              <Button variant="ghost" icon={Icon.trash({})} tooltip="Xoá token khỏi trình duyệt này" onClick={() => { setTokenDraft(''); api.clearAdminToken(); setTokenOpen(false); }}>Xoá</Button>
+              <Button variant="primary" icon={Icon.save({})} tooltip="Lưu token và tự động gửi Authorization header cho API" onClick={saveToken}>Lưu token</Button>
+            </>
+          }
+        >
+          <p className="muted">Nhập giá trị <code>API_FETCH_MANAGER_ADMIN_TOKEN</code>. Token chỉ lưu trong localStorage của trình duyệt này; có thể cấu hình sẵn bằng <code>VITE_API_FETCH_MANAGER_ADMIN_TOKEN</code> khi build.</p>
+          <Field label="Admin token">
+            <Input
+              type="password"
+              value={tokenDraft}
+              onChange={(e) => setTokenDraft(e.target.value)}
+              placeholder="Bearer token..."
+              autoComplete="off"
+            />
+          </Field>
+        </Modal>
+      )}
 
       <InspectMode />
     </div>

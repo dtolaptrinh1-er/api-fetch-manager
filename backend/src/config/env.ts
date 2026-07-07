@@ -47,6 +47,12 @@ export interface AppConfig {
   firebaseServiceAccount?: string;
   /** Bearer token quản trị cho mọi endpoint /api ngoài /api/health. */
   adminToken?: string;
+  /** Timeout mỗi HTTP request outbound của executor/Firebase REST. */
+  httpTimeoutMs: number;
+  /** Số lần retry sau lần gọi đầu khi lỗi mạng/timeout/429/5xx. */
+  httpRetries: number;
+  /** Giới hạn response text đọc vào memory. */
+  httpMaxResponseBytes: number;
 }
 
 const PREFIX = 'API_FETCH_MANAGER_';
@@ -127,6 +133,9 @@ export function loadConfig(): AppConfig {
     },
     firebaseServiceAccount: get('FIREBASE_SA'),
     adminToken: get('ADMIN_TOKEN'),
+    httpTimeoutMs: Number(get('HTTP_TIMEOUT_MS') ?? 15_000),
+    httpRetries: Number(get('HTTP_RETRIES') ?? 2),
+    httpMaxResponseBytes: Number(get('HTTP_MAX_RESPONSE_BYTES') ?? 1_048_576),
   };
 
   if (storageMode === 'firebase') {
@@ -144,6 +153,15 @@ export function loadConfig(): AppConfig {
 
   if (Number.isNaN(config.port) || config.port <= 0) {
     throw new Error(`[config] ${PREFIX}PORT không hợp lệ.`);
+  }
+  if (!Number.isFinite(config.httpTimeoutMs) || config.httpTimeoutMs <= 0) {
+    throw new Error(`[config] ${PREFIX}HTTP_TIMEOUT_MS không hợp lệ.`);
+  }
+  if (!Number.isInteger(config.httpRetries) || config.httpRetries < 0) {
+    throw new Error(`[config] ${PREFIX}HTTP_RETRIES không hợp lệ.`);
+  }
+  if (!Number.isFinite(config.httpMaxResponseBytes) || config.httpMaxResponseBytes <= 0) {
+    throw new Error(`[config] ${PREFIX}HTTP_MAX_RESPONSE_BYTES không hợp lệ.`);
   }
 
   cached = config;
