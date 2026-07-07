@@ -1,16 +1,15 @@
-# [FEATURE] <tên tính năng>
+# [FEATURE] `<tên tính năng>`
 
-> Kế thừa TEMPLATE_change-request.md. Phần bổ sung cho tính năng mới:
+> Kế thừa `.templates/change-request/TEMPLATE_change-request.md`.
+> SPEC: [SYS] `docs/SPEC-PLAN/01.SPEC.md` · [UI] `docs/SPEC-PLAN/02.SPEC_UI.md` · [PLAN] `docs/SPEC-PLAN/03.PLAN.md`
 
 ## File thường ảnh hưởng (điền sẵn theo kiến trúc)
-
-- backend: `src/lib/types.ts` (type mới) · `src/modules/stores.ts` (RTDB logic) · `src/routes/routes.ts` (endpoint) · test
-- frontend: `src/api/api.ts` (client+type) · `src/pages/<New>Page.tsx` · `App.tsx` (nav) · `tokens.css` (nếu cần)
-- storage: nếu thêm DB/nhánh → `db/rtdb.ts` + `docker/database.rules.json`
-- docs: SPEC tổng thể + SPEC_UI + (nếu có dịch vụ ngoài) `docs/services/*`
+- backend: `src/lib/types.ts` (type mới) · `src/modules/stores.ts` (RTDB logic) · `src/routes/routes.ts` (endpoint) · `backend/test/*`
+- frontend: `src/api/api.ts` (client+type) · `src/pages/<Tên>Page.tsx` · `App.tsx` (nav) · `src/styles/tokens.css` (nếu cần)
+- storage: nếu thêm DB/nhánh → `src/db/rtdb.ts` + `docker/database.rules.json`
+- docs: [SYS] `docs/SPEC-PLAN/01.SPEC.md` + [UI] `docs/SPEC-PLAN/02.SPEC_UI.md` + (nếu có dịch vụ ngoài) `docs/services/*`
 
 ## Câu hỏi thiết kế phải trả lời trước
-
 - Thuộc RTDB nào? cần index gì?
 - Endpoint mới? shape request/response?
 - UI: page mới hay mở rộng page cũ? tuân thủ modal/tooltip/theme?
