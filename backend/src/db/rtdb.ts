@@ -7,7 +7,7 @@
  *
  *   - MemoryDb  : chạy in-memory (mặc định dev/test), reset khi restart.
  *   - FileDb    : lưu JSON xuống ổ đĩa (mỗi DB 1 file) → giữ dữ liệu qua restart.
- *   - FirebaseDb: (khi có credential) dùng Firebase Admin SDK trỏ tới URL RTDB thật.
+ *   - FirebaseDb: (khi có credential) dùng RTDB REST API + OAuth service account.
  *
  * Cả 3 adapter cùng interface → business logic không đổi. Schema & `.indexOn`
  * được đặc tả trong docker/database.rules.json (dùng cho Firebase mode).
@@ -178,6 +178,124 @@ class FileDb implements Db {
   }
 }
 
+
+/* ------------------------------------------------------------------ */
+/* FirebaseDb — Firebase RTDB REST adapter (5 DB/app URL độc lập)      */
+/* ------------------------------------------------------------------ */
+
+interface FirebaseServiceAccount {
+  client_email: string;
+  private_key: string;
+  token_uri?: string;
+}
+
+function parseFirebaseServiceAccount(encoded?: string): FirebaseServiceAccount {
+  if (!encoded) throw new Error('[rtdb] API_FETCH_MANAGER_FIREBASE_SA là bắt buộc cho firebase mode.');
+  try {
+    const json = Buffer.from(encoded, 'base64').toString('utf8');
+    const sa = JSON.parse(json) as FirebaseServiceAccount;
+    if (!sa.client_email || !sa.private_key) throw new Error('missing client_email/private_key');
+    return sa;
+  } catch (e: any) {
+    throw new Error(`[rtdb] FIREBASE_SA phải là service-account JSON được base64 hóa hợp lệ: ${e?.message ?? e}`);
+  }
+}
+
+function base64Url(input: Buffer | string): string {
+  return Buffer.from(input).toString('base64').replace(/=/g, '').replace(/\+/g, '-').replace(/\//g, '_');
+}
+
+class FirebaseTokenProvider {
+  private token: { value: string; expiresAt: number } | null = null;
+  constructor(private sa: FirebaseServiceAccount) {}
+
+  async getAccessToken(): Promise<string> {
+    const nowMs = Date.now();
+    if (this.token && this.token.expiresAt - 60_000 > nowMs) return this.token.value;
+
+    const { createSign } = await import('node:crypto');
+    const nowSec = Math.floor(nowMs / 1000);
+    const header = { alg: 'RS256', typ: 'JWT' };
+    const claim = {
+      iss: this.sa.client_email,
+      scope: 'https://www.googleapis.com/auth/firebase.database https://www.googleapis.com/auth/userinfo.email',
+      aud: this.sa.token_uri ?? 'https://oauth2.googleapis.com/token',
+      iat: nowSec,
+      exp: nowSec + 3600,
+    };
+    const unsigned = `${base64Url(JSON.stringify(header))}.${base64Url(JSON.stringify(claim))}`;
+    const signer = createSign('RSA-SHA256');
+    signer.update(unsigned);
+    const assertion = `${unsigned}.${base64Url(signer.sign(this.sa.private_key))}`;
+
+    const res = await fetch(claim.aud, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
+        assertion,
+      }),
+    });
+    const body = (await res.json().catch(() => ({}))) as any;
+    if (!res.ok || !body.access_token) {
+      throw new Error(`[rtdb] Không lấy được Firebase access token (${res.status}): ${body.error_description ?? body.error ?? res.statusText}`);
+    }
+    this.token = { value: body.access_token, expiresAt: nowMs + Number(body.expires_in ?? 3600) * 1000 };
+    return this.token.value;
+  }
+}
+
+class FirebaseDb implements Db {
+  constructor(public name: DbName, private databaseUrl: string, private tokens: FirebaseTokenProvider) {
+    if (!databaseUrl) throw new Error(`[rtdb] Thiếu RTDB URL cho database ${name}.`);
+    this.databaseUrl = databaseUrl.replace(/\/+$/, '');
+  }
+
+  private url(path: string, params?: Record<string, string>): string {
+    const clean = splitPath(path).map(encodeURIComponent).join('/');
+    const u = new URL(`${this.databaseUrl}/${clean}.json`);
+    if (params) for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
+    return u.toString();
+  }
+
+  private async request<T>(method: string, path: string, body?: unknown, params?: Record<string, string>): Promise<T> {
+    const token = await this.tokens.getAccessToken();
+    const res = await fetch(this.url(path, params), {
+      method,
+      headers: { authorization: `Bearer ${token}`, ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    const text = await res.text();
+    const parsed = text ? JSON.parse(text) : null;
+    if (!res.ok) throw new Error(`[rtdb:${this.name}] ${method} ${path} failed (${res.status}): ${text || res.statusText}`);
+    return parsed as T;
+  }
+
+  async get<T>(path: string) {
+    return await this.request<T | null>('GET', path);
+  }
+  async set(path: string, value: unknown) {
+    await this.request('PUT', path, value);
+  }
+  async update(path: string, value: Record<string, unknown>) {
+    await this.request('PATCH', path, value);
+  }
+  async push(path: string, value: Record<string, unknown>) {
+    const res = await this.request<{ name: string }>('POST', path, value);
+    return res.name;
+  }
+  async remove(path: string) {
+    await this.request('DELETE', path);
+  }
+  async query<T>(path: string, opts?: QueryOptions) {
+    const params: Record<string, string> = {};
+    if (opts?.orderByChild) params.orderBy = JSON.stringify(opts.orderByChild);
+    if (opts?.equalTo !== undefined) params.equalTo = JSON.stringify(opts.equalTo);
+    if (opts?.limit && opts.limit > 0) params.limitToFirst = String(opts.limit);
+    return (await this.request<Record<string, T> | null>('GET', path, undefined, params)) ?? {};
+  }
+}
+
 /* ------------------------------------------------------------------ */
 /* Registry — export 5 handle DB                                       */
 /* ------------------------------------------------------------------ */
@@ -193,18 +311,21 @@ export interface RtdbRegistry {
 const DB_NAMES: DbName[] = ['keys', 'history', 'logs', 'issues', 'variables'];
 
 export function createRtdb(config: AppConfig): RtdbRegistry {
+  const firebaseTokens = config.storageMode === 'firebase' ? new FirebaseTokenProvider(parseFirebaseServiceAccount(config.firebaseServiceAccount)) : null;
+  const firebaseUrls: Record<DbName, string | undefined> = {
+    keys: config.rtdb.keys,
+    history: config.rtdb.history,
+    logs: config.rtdb.logs,
+    issues: config.rtdb.issues,
+    variables: config.rtdb.variables,
+  };
+
   const make = (name: DbName): Db => {
     switch (config.storageMode) {
       case 'file':
         return new FileDb(name, config.dataDir);
       case 'firebase':
-        // Khi có credential thật: khởi tạo Firebase Admin App riêng cho từng URL
-        // (mỗi DB một firebase app instance) và bọc theo interface Db.
-        // Xem docs/OPERATIONS.md để cấu hình. Fallback về Memory nếu chưa wire.
-        throw new Error(
-          `[rtdb] storageMode=firebase yêu cầu tích hợp firebase-admin. ` +
-            `Xem docs/OPERATIONS.md (mục Firebase). Tạm thời dùng memory/file.`,
-        );
+        return new FirebaseDb(name, firebaseUrls[name]!, firebaseTokens!);
       case 'memory':
       default:
         return new MemoryDb(name);

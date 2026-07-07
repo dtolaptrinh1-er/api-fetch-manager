@@ -87,7 +87,7 @@ steps:
 ```
 
 ## 5. Production với Firebase
-Khi dùng RTDB thật, thêm vào env (Compose/secret): `API_FETCH_MANAGER_STORAGE_MODE=firebase`, `API_FETCH_MANAGER_FIREBASE_SA`, và 5 `API_FETCH_MANAGER_RTDB_*_URL`. Xem `OPERATIONS.md` mục 3.3.
+Khi dùng RTDB thật, thêm vào env (Compose/secret): `API_FETCH_MANAGER_STORAGE_MODE=firebase`, `API_FETCH_MANAGER_FIREBASE_SA`, `API_FETCH_MANAGER_ADMIN_TOKEN`, và 5 `API_FETCH_MANAGER_RTDB_*_URL`. Xem `OPERATIONS.md` mục 3.3.
 
 ## 6. Cập nhật / rollback
 ```bash

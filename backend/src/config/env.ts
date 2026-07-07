@@ -43,8 +43,10 @@ export interface AppConfig {
     issues?: string;
     variables?: string;
   };
-  /** Service Account JSON (base64) cho Firebase Admin SDK. */
+  /** Service Account JSON (base64) cho Firebase RTDB REST adapter. */
   firebaseServiceAccount?: string;
+  /** Bearer token quản trị cho mọi endpoint /api ngoài /api/health. */
+  adminToken?: string;
 }
 
 const PREFIX = 'API_FETCH_MANAGER_';
@@ -124,6 +126,7 @@ export function loadConfig(): AppConfig {
       variables: get('RTDB_VARIABLES_URL'),
     },
     firebaseServiceAccount: get('FIREBASE_SA'),
+    adminToken: get('ADMIN_TOKEN'),
   };
 
   if (storageMode === 'firebase') {
@@ -133,6 +136,9 @@ export function loadConfig(): AppConfig {
     required('RTDB_LOGS_URL');
     required('RTDB_ISSUES_URL');
     required('RTDB_VARIABLES_URL');
+    if (!config.adminToken) {
+      throw new Error(`[config] ${PREFIX}ADMIN_TOKEN bắt buộc khi chạy storage firebase để bảo vệ secret endpoints.`);
+    }
   }
 
   if (Number.isNaN(config.port) || config.port <= 0) {

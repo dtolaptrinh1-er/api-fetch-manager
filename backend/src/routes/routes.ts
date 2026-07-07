@@ -12,8 +12,20 @@ import { issueToMarkdown } from '../lib/markdown.js';
 import { resolveTemplate } from '../engine/placeholder.js';
 import { listTransforms } from '../engine/transforms.js';
 import { runSandbox } from '../engine/sandbox.js';
+import { now } from '../lib/ids.js';
 
 export function registerRoutes(app: FastifyInstance, ctx: AppContext): void {
+  // AuthN/AuthZ tối thiểu: nếu ADMIN_TOKEN được cấu hình, mọi endpoint /api
+  // (trừ health) phải gửi Authorization: Bearer <token>. Firebase mode bắt buộc
+  // có token ở config để tránh reveal/export plaintext public.
+  app.addHook('preHandler', async (req, reply) => {
+    if (!req.url.startsWith('/api') || req.url === '/api/health') return;
+    const token = ctx.config.adminToken;
+    if (!token) return;
+    const auth = req.headers.authorization ?? '';
+    if (auth !== `Bearer ${token}`) return reply.code(401).send(err('Unauthorized'));
+  });
+
   // Health
   app.get('/api/health', async () => ok({ status: 'up', storage: ctx.config.storageMode }));
 
@@ -69,6 +81,15 @@ export function registerRoutes(app: FastifyInstance, ctx: AppContext): void {
   /** Lộ giá trị thật (đã qua confirm ở FE) — trả plaintext CHỦ ĐÍCH cho 1 credential. */
   app.post('/api/owners/:id/credentials/:credId/reveal', async (req, reply) => {
     const { id, credId } = req.params as { id: string; credId: string };
+    await store.addLog(ctx, {
+      level: 'warn',
+      service: 'security',
+      business: 'credential-reveal',
+      message: 'Credential plaintext reveal requested',
+      scope: 'api',
+      detail: { ownerId: id, credId, ip: req.ip },
+      createdAt: now(),
+    });
     const creds = await store.listCredentials(ctx, id);
     const c = creds.find((x) => x.id === credId);
     if (!c) return reply.code(404).send(err('Không tìm thấy credential'));
@@ -78,7 +99,16 @@ export function registerRoutes(app: FastifyInstance, ctx: AppContext): void {
   });
 
   /* ---------- Import / Export ([SYS] 4.1) ---------- */
-  app.get('/api/export', async () => {
+  app.get('/api/export', async (req) => {
+    await store.addLog(ctx, {
+      level: 'warn',
+      service: 'security',
+      business: 'credential-export',
+      message: 'Plaintext credential export requested',
+      scope: 'api',
+      detail: { ip: req.ip },
+      createdAt: now(),
+    });
     const owners = await store.listOwners(ctx);
     const data: any = { owners: {}, credentials: {}, templates: await store.listTemplates(ctx) };
     for (const o of owners) {
@@ -99,12 +129,11 @@ export function registerRoutes(app: FastifyInstance, ctx: AppContext): void {
     const b = req.body as any;
     let ownersCreated = 0;
     let credsCreated = 0;
-    for (const [, o] of Object.entries<any>(b?.owners ?? {})) {
+    for (const [oldOwnerId, o] of Object.entries<any>(b?.owners ?? {})) {
       const owner = await store.createOwner(ctx, o.email, o.isSaveRtdbEmail ?? true);
       ownersCreated++;
-      // Map credential theo email cũ (import đơn giản: gắn hết vào owner mới cùng email).
-      const oldOwnerId = Object.keys(b.owners).find((k) => b.owners[k].email === o.email);
-      const creds = b.credentials?.[oldOwnerId ?? ''] ?? [];
+      // Map credential theo key owner gốc trong export, tránh gán nhầm khi trùng email.
+      const creds = b.credentials?.[oldOwnerId] ?? [];
       for (const c of creds) {
         await store.addCredential(ctx, owner.id, c);
         credsCreated++;

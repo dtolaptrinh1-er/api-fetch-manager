@@ -16,6 +16,7 @@ Tất cả biến prefix `API_FETCH_MANAGER_`. Xem `.env.example` để biết *
 | `API_FETCH_MANAGER_STORAGE_MODE` | không (memory) | `memory` \| `file` \| `firebase` |
 | `API_FETCH_MANAGER_DATA_DIR` | khi `file` | Thư mục JSON |
 | `API_FETCH_MANAGER_ENCRYPTION_KEY` | **có** (prod/firebase) | Khóa AES-256 (32 byte base64) |
+| `API_FETCH_MANAGER_ADMIN_TOKEN` | **có** khi `firebase` | Bearer token bảo vệ mọi `/api` ngoài health |
 | `API_FETCH_MANAGER_FIREBASE_SA` | khi `firebase` | Service Account base64 |
 | `API_FETCH_MANAGER_RTDB_*_URL` (5 cái) | khi `firebase` | URL 5 RTDB |
 
@@ -43,13 +44,14 @@ Dùng Google Realtime Database, **5 DB tách biệt**. Các bước:
 2. Realtime Database → tạo **5 instance**: keys, history, logs, issues, variables. Copy URL từng cái vào `API_FETCH_MANAGER_RTDB_*_URL`.
 3. Nạp rules từ `docker/database.rules.json` cho từng instance (đảm bảo `.indexOn` đúng schema — xem [SYS] 3 & 10.4).
 4. Project Settings → Service accounts → Generate private key → base64 hóa → `API_FETCH_MANAGER_FIREBASE_SA`.
-5. Đặt `API_FETCH_MANAGER_STORAGE_MODE=firebase`.
+5. Sinh `API_FETCH_MANAGER_ADMIN_TOKEN` và gửi `Authorization: Bearer <token>` khi gọi API.
+6. Đặt `API_FETCH_MANAGER_STORAGE_MODE=firebase`.
 
-> Adapter Firebase được cắm qua interface `Db` trong `src/db/rtdb.ts`. Khi bật firebase, khởi tạo firebase-admin app cho từng URL và bọc theo interface (get/set/update/push/remove/query). Cấu trúc dữ liệu & path giống hệt file/memory nên không đổi business logic.
+> Adapter Firebase được cắm qua interface `Db` trong `src/db/rtdb.ts`. Khi bật firebase, adapter dùng OAuth service account + Firebase RTDB REST API cho từng URL và bọc theo interface (get/set/update/push/remove/query). Cấu trúc dữ liệu & path giống hệt file/memory nên không đổi business logic.
 
 ## 4. Bảo mật
 - Credential **luôn mã hóa** AES-256-GCM at-rest (`valueEnc` + `iv`). Không lưu plaintext.
-- API list trả **masked** (`ghp_****ANR1M`). Chỉ endpoint `/reveal` (sau confirm ở UI) trả plaintext.
+- API list trả **masked** (`ghp_****ANR1M`). Chỉ endpoint `/reveal` (sau confirm ở UI) trả plaintext. Khi cấu hình `API_FETCH_MANAGER_ADMIN_TOKEN`, mọi endpoint `/api` ngoài `/api/health` yêu cầu Bearer token; firebase mode bắt buộc có token này.
 - Log **che token** (Bearer/token/ghp_/sbp_ → `***`). Không log secret.
 - Advanced JS chạy trong **sandbox cô lập** (node:vm): cấm network/fs/process/require, timeout 200ms.
 - ⚠️ Secret mẫu trong tài liệu yêu cầu đã bị lộ → **rotate ngay**, chỉ dùng dữ liệu GIẢ cho seed/test.
