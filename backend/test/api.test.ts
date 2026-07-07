@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { buildServer } from '../src/server.js';
+import { _resetConfigForTest, loadConfig } from '../src/config/env.js';
 
 // API-level integration test dùng app.inject() — không cần mở port thật.
 process.env.API_FETCH_MANAGER_STORAGE_MODE = 'memory';
@@ -93,6 +94,42 @@ describe('API integration (inject)', () => {
     await app.inject({ method: 'POST', url: '/api/variables', payload: { scope: 'global', key: 'api.base', value: 'https://x' } });
     const list = await app.inject({ method: 'GET', url: '/api/variables?scope=global' });
     expect(list.json().data['api.base'].value).toBe('https://x');
+  });
+
+
+
+  it('admin token bảo vệ /api khi được cấu hình, nhưng vẫn mở /api/health', async () => {
+    process.env.API_FETCH_MANAGER_STORAGE_MODE = 'memory';
+    process.env.API_FETCH_MANAGER_ADMIN_TOKEN = 'test-admin-token';
+    _resetConfigForTest();
+    const built = await buildServer();
+    const secured = built.app;
+    await secured.ready();
+    try {
+      const health = await secured.inject({ method: 'GET', url: '/api/health' });
+      expect(health.statusCode).toBe(200);
+
+      const unauth = await secured.inject({ method: 'GET', url: '/api/owners' });
+      expect(unauth.statusCode).toBe(401);
+
+      const auth = await secured.inject({ method: 'GET', url: '/api/owners', headers: { authorization: 'Bearer test-admin-token' } });
+      expect(auth.statusCode).toBe(200);
+      expect(auth.json().ok).toBe(true);
+    } finally {
+      await secured.close();
+      delete process.env.API_FETCH_MANAGER_ADMIN_TOKEN;
+      process.env.API_FETCH_MANAGER_STORAGE_MODE = 'memory';
+      _resetConfigForTest();
+    }
+  });
+
+  it('file/firebase storage fail-fast nếu thiếu ADMIN_TOKEN', () => {
+    process.env.API_FETCH_MANAGER_STORAGE_MODE = 'file';
+    delete process.env.API_FETCH_MANAGER_ADMIN_TOKEN;
+    _resetConfigForTest();
+    expect(() => loadConfig()).toThrow(/ADMIN_TOKEN bắt buộc/);
+    process.env.API_FETCH_MANAGER_STORAGE_MODE = 'memory';
+    _resetConfigForTest();
   });
 
   it('sandbox-test chặn network', async () => {

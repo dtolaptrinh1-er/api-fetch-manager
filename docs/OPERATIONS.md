@@ -16,7 +16,7 @@ Tất cả biến prefix `API_FETCH_MANAGER_`. Xem `.env.example` để biết *
 | `API_FETCH_MANAGER_STORAGE_MODE` | không (memory) | `memory` \| `file` \| `firebase` |
 | `API_FETCH_MANAGER_DATA_DIR` | khi `file` | Thư mục JSON |
 | `API_FETCH_MANAGER_ENCRYPTION_KEY` | **có** (prod/firebase) | Khóa AES-256 (32 byte base64) |
-| `API_FETCH_MANAGER_ADMIN_TOKEN` | **có** khi `firebase` | Bearer token bảo vệ mọi `/api` ngoài health |
+| `API_FETCH_MANAGER_ADMIN_TOKEN` | **có** khi `file`/`firebase` | Bearer token bảo vệ mọi `/api` ngoài health |
 | `API_FETCH_MANAGER_FIREBASE_SA` | khi `firebase` | Service Account base64 |
 | `API_FETCH_MANAGER_RTDB_*_URL` (5 cái) | khi `firebase` | URL 5 RTDB |
 
@@ -51,7 +51,7 @@ Dùng Google Realtime Database, **5 DB tách biệt**. Các bước:
 
 ## 4. Bảo mật
 - Credential **luôn mã hóa** AES-256-GCM at-rest (`valueEnc` + `iv`). Không lưu plaintext.
-- API list trả **masked** (`ghp_****ANR1M`). Chỉ endpoint `/reveal` (sau confirm ở UI) trả plaintext. Khi cấu hình `API_FETCH_MANAGER_ADMIN_TOKEN`, mọi endpoint `/api` ngoài `/api/health` yêu cầu Bearer token; firebase mode bắt buộc có token này.
+- API list trả **masked** (`ghp_****ANR1M`). Chỉ endpoint `/reveal` (sau confirm ở UI) trả plaintext. Khi cấu hình `API_FETCH_MANAGER_ADMIN_TOKEN`, mọi endpoint `/api` ngoài `/api/health` yêu cầu Bearer token; file/firebase mode bắt buộc có token này. Frontend gửi token từ `VITE_API_FETCH_MANAGER_ADMIN_TOKEN` khi build hoặc từ `localStorage['api-fetch-manager.adminToken']`.
 - Log **che token** (Bearer/token/ghp_/sbp_ → `***`). Không log secret.
 - Advanced JS chạy trong **sandbox cô lập** (node:vm): cấm network/fs/process/require, timeout 200ms.
 - ⚠️ Secret mẫu trong tài liệu yêu cầu đã bị lộ → **rotate ngay**, chỉ dùng dữ liệu GIẢ cho seed/test.
@@ -64,6 +64,7 @@ npm install
 npm run build
 API_FETCH_MANAGER_ENCRYPTION_KEY="$(openssl rand -base64 32)" \
 API_FETCH_MANAGER_STORAGE_MODE=file API_FETCH_MANAGER_DATA_DIR=.data \
+API_FETCH_MANAGER_ADMIN_TOKEN="$(openssl rand -base64 32)" \
 npm start
 # → http://localhost:8080
 ```
@@ -77,6 +78,7 @@ npm run dev:frontend  # cổng 5173, proxy /api → 8080
 ```bash
 cd app/backend
 API_FETCH_MANAGER_STORAGE_MODE=file API_FETCH_MANAGER_DATA_DIR=.data \
+API_FETCH_MANAGER_ADMIN_TOKEN="$(openssl rand -base64 32)" \
 API_FETCH_MANAGER_ENCRYPTION_KEY="$(openssl rand -base64 32)" \
 npm run seed
 ```

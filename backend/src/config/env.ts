@@ -136,9 +136,10 @@ export function loadConfig(): AppConfig {
     required('RTDB_LOGS_URL');
     required('RTDB_ISSUES_URL');
     required('RTDB_VARIABLES_URL');
-    if (!config.adminToken) {
-      throw new Error(`[config] ${PREFIX}ADMIN_TOKEN bắt buộc khi chạy storage firebase để bảo vệ secret endpoints.`);
-    }
+  }
+
+  if (storageMode !== 'memory' && !config.adminToken) {
+    throw new Error(`[config] ${PREFIX}ADMIN_TOKEN bắt buộc khi STORAGE_MODE=${storageMode} để bảo vệ secret endpoints.`);
   }
 
   if (Number.isNaN(config.port) || config.port <= 0) {

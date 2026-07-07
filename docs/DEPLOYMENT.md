@@ -9,6 +9,7 @@ cd app
 cp .env.example .env
 # Điền tối thiểu:
 #   API_FETCH_MANAGER_ENCRYPTION_KEY=<openssl rand -base64 32>
+#   API_FETCH_MANAGER_ADMIN_TOKEN=<openssl rand -base64 32>
 #   API_FETCH_MANAGER_STORAGE_MODE=file   (hoặc firebase)
 
 docker compose up -d --build
@@ -28,6 +29,7 @@ cd app
 docker build -t api-fetch-manager:latest -f Dockerfile .
 docker run -d --name afm -p 8080:8080 \
   -e API_FETCH_MANAGER_ENCRYPTION_KEY="$(openssl rand -base64 32)" \
+  -e API_FETCH_MANAGER_ADMIN_TOKEN="$(openssl rand -base64 32)" \
   -e API_FETCH_MANAGER_STORAGE_MODE=file \
   -e API_FETCH_MANAGER_DATA_DIR=/data \
   -v afm-data:/data \
@@ -52,16 +54,18 @@ jobs:
       - name: Run container
         env:
           API_FETCH_MANAGER_ENCRYPTION_KEY: ${{ secrets.API_FETCH_MANAGER_ENCRYPTION_KEY }}
+          API_FETCH_MANAGER_ADMIN_TOKEN: ${{ secrets.API_FETCH_MANAGER_ADMIN_TOKEN }}
         run: |
           docker rm -f afm || true
           docker run -d --name afm -p 8080:8080 \
             -e API_FETCH_MANAGER_ENCRYPTION_KEY="$API_FETCH_MANAGER_ENCRYPTION_KEY" \
+            -e API_FETCH_MANAGER_ADMIN_TOKEN="$API_FETCH_MANAGER_ADMIN_TOKEN" \
             -e API_FETCH_MANAGER_STORAGE_MODE=file \
             -e API_FETCH_MANAGER_DATA_DIR=/data \
             -v afm-data:/data \
             api-fetch-manager:latest
 ```
-> Lưu `API_FETCH_MANAGER_ENCRYPTION_KEY` (và các biến firebase nếu dùng) trong **GitHub Secrets**.
+> Lưu `API_FETCH_MANAGER_ENCRYPTION_KEY`, `API_FETCH_MANAGER_ADMIN_TOKEN` (và các biến firebase nếu dùng) trong **GitHub Secrets**.
 
 ## 4. Azure runner (Linux)
 Tương tự GitHub. Azure Pipelines mẫu:
@@ -77,6 +81,7 @@ steps:
       docker rm -f afm || true
       docker run -d --name afm -p 8080:8080 \
         -e API_FETCH_MANAGER_ENCRYPTION_KEY="$(AFM_KEY)" \
+        -e API_FETCH_MANAGER_ADMIN_TOKEN="$(AFM_ADMIN_TOKEN)" \
         -e API_FETCH_MANAGER_STORAGE_MODE=file \
         -e API_FETCH_MANAGER_DATA_DIR=/data \
         -v afm-data:/data \
@@ -84,6 +89,7 @@ steps:
     displayName: Run container
     env:
       AFM_KEY: $(AFM_ENCRYPTION_KEY)   # lấy từ Azure pipeline secret variable
+      AFM_ADMIN_TOKEN: $(AFM_ADMIN_TOKEN)
 ```
 
 ## 5. Production với Firebase
