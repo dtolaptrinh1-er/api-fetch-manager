@@ -2,10 +2,11 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './styles/tokens.css';
 import './styles/components.css';
+import './lib/tooltip';
 import App from './App';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
-  <React.StrictMode>
-    <App />
-  </React.StrictMode>,
+ <React.StrictMode>
+ <App />
+ </React.StrictMode>,
 );
