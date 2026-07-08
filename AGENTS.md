@@ -5,13 +5,20 @@
 
 ## Bảng ký hiệu tài liệu → file
 
-| Ký hiệu  | File                           |
+| Ký hiệu | File |
 | -------- | ------------------------------ |
-| [REQ]    | `docs/SPEC-PLAN/00.YEUCAU.md`  |
-| [SYS]    | `docs/SPEC-PLAN/01.SPEC.md`    |
-| [UI]     | `docs/SPEC-PLAN/02.SPEC_UI.md` |
-| [PLAN]   | `docs/SPEC-PLAN/03.PLAN.md`    |
-| [PROMPT] | `docs/SPEC-PLAN/04.PROMPT.md`  |
+| [REQ] | `docs/SPEC-PLAN/00.YEUCAU.md` |
+| [SYS] | `docs/SPEC-PLAN/01.SPEC.md` |
+| [UI] | `docs/SPEC-PLAN/02.SPEC_UI.md` |
+| [UI+] | `docs/SPEC-PLAN/02.SPEC_UI-addendum-v1.2.md` |
+| [UI+] | `docs/SPEC-PLAN/02.SPEC_UI-addendum-v1.3.md` (lưu đồ owner-centric + UI Test suite) |
+| [UI+] | `docs/SPEC-PLAN/02.SPEC_UI-addendum-v1.4.md` (owner search · status bar · DataList bắt buộc · service tabs) |
+| [UI+] | `docs/SPEC-PLAN/02.SPEC_UI-addendum-v1.5.md` (UI Self-Test Mode) |
+| [DESIGN] | `docs/SPEC-PLAN/02.SPEC_DESIGN-supabase.md` (palette/tokens áp cho theme) |
+| [PLAN] | `docs/SPEC-PLAN/03.PLAN.md` |
+| [PROMPT] | `docs/SPEC-PLAN/04.PROMPT.md` |
+
+> **Nguồn chân lý triển khai nâng cấp v2:** page **`01.PROMPT_MASTER`** trên ClickUp (gộp 6 nhóm việc). Các addendum [UI+] v1.3–v1.5 là bản trong-repo tương ứng của page đó. Khi mâu thuẫn: [UI]/[UI+] thắng phần giao diện · [SYS] thắng phần kỹ thuật/dữ liệu · [PLAN] quyết thứ tự & DoD · addendum mới hơn ưu tiên cho mục nó đề cập.
 
 ---
 
@@ -34,6 +41,7 @@ repo root (monolith Docker)
 ```
 
 **5 RTDB tách biệt:** keys · history · logs · issues · variables (`.indexOn` ở `docker/database.rules.json`).
+> **Nâng cấp v2 (theo `01.PROMPT_MASTER`):** thêm **RTDB #6 `rtdb-resources`** cho service/resource động — giữ nguyên bất biến 5 DB cũ + interface `Db`.
 
 ---
 
@@ -44,7 +52,7 @@ repo root (monolith Docker)
 - Mọi env **prefix `API_FETCH_MANAGER_`**, khai báo + validate trong `env.ts`.
 - Credential **luôn mã hoá at-rest** (AES-256-GCM). API **không bao giờ** trả plaintext trừ endpoint `/reveal` (đã có audit log).
 - Log **không chứa token** (dùng `redact()`), advanced JS **chỉ chạy trong sandbox**.
-- Thêm/sửa storage phải **giữ nguyên interface `Db`** để 3 adapter đồng nhất.
+- Thêm/sửa storage phải **giữ nguyên interface `Db`** để các adapter đồng nhất.
 - Response API luôn `{ ok, data?, error? }`.
 - Gọi HTTP ngoài phải qua **policy timeout + retry** (đã có ở executor & FirebaseDb).
 
@@ -55,21 +63,23 @@ repo root (monolith Docker)
 - Mọi button có **icon + tooltip**. Chức năng quan trọng có confirm.
 - Mọi màu/spacing qua **CSS variables** trong `tokens.css`. Font mảnh (300–400), spacing 4px.
 - Gọi API qua client `api.ts` (đã tự gắn `Authorization` header).
+- **[RULE v1.4] Mọi danh sách (table/card) BẮT BUỘC có filter · sort · export data (JSON/CSV) · export PDF** — dùng chung component `DataList`, không tự chế mỗi trang một kiểu.
 
 ---
 
 ## 3. Ma trận "đụng file X → phải cập nhật Y" (chống vỡ)
 
-| Khi bạn đổi…                         | Bắt buộc cập nhật kèm                                                                                          |
+| Khi bạn đổi… | Bắt buộc cập nhật kèm |
 | ------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
-| `routes.ts` (thêm/sửa endpoint)      | `frontend/src/api/api.ts` (client + types) · `backend/test/api.test.ts` · [SYS] `docs/SPEC-PLAN/01.SPEC.md` §4 |
-| `lib/types.ts`                       | mọi nơi dùng type + `api.ts` types tương ứng                                                                   |
-| `db/rtdb.ts` (interface Db / schema) | `docker/database.rules.json` (.indexOn) · test adapter · [SYS] `docs/SPEC-PLAN/01.SPEC.md` §3, §10.4           |
-| `engine/*`                           | test trong `backend/test/*` · [SYS] `docs/SPEC-PLAN/01.SPEC.md` §5, §10                                        |
-| `env.ts` (thêm biến)                 | `.env.example` (đủ 5 mục chú giải) · `docs/OPERATIONS.md`                                                      |
-| Thêm page/feature FE                 | `App.tsx` nav · `tokens.css` nếu cần token mới · [UI] `docs/SPEC-PLAN/02.SPEC_UI.md`                           |
-| Thêm dịch vụ API ngoài               | `docs/services/<tên-service>.md` (theo `docs/services/_TEMPLATE.md`)                                           |
-| BẤT KỲ thay đổi nào                  | Điền + cập nhật Change Request template tương ứng trong `.templates/change-request/`                           |
+| `routes.ts` (thêm/sửa endpoint) | `frontend/src/api/api.ts` (client + types) · `backend/test/api.test.ts` · [SYS] `docs/SPEC-PLAN/01.SPEC.md` §4 |
+| `lib/types.ts` | mọi nơi dùng type + `api.ts` types tương ứng |
+| `db/rtdb.ts` (interface Db / schema) | `docker/database.rules.json` (.indexOn) · test adapter · [SYS] `docs/SPEC-PLAN/01.SPEC.md` §3, §10.4 |
+| `engine/*` | test trong `backend/test/*` · [SYS] `docs/SPEC-PLAN/01.SPEC.md` §5, §10 |
+| `env.ts` (thêm biến) | `.env.example` (đủ 5 mục chú giải) · `docs/OPERATIONS.md` |
+| Thêm page/feature FE | `App.tsx` nav · `tokens.css` nếu cần token mới · [UI] `docs/SPEC-PLAN/02.SPEC_UI.md` + addendum liên quan |
+| Thêm danh sách mới (list/table) | Dùng `DataList` (filter/sort/export) · [UI+] v1.4 |
+| Thêm dịch vụ API ngoài | `docs/services/<tên-service>.md` (theo `docs/services/_TEMPLATE.md`) |
+| BẤT KỲ thay đổi nào | Điền + cập nhật Change Request template tương ứng trong `.templates/change-request/` |
 
 ---
 
