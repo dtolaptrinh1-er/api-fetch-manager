@@ -1,9 +1,106 @@
 /**
- * seed-smoke.ts — Seed dữ liệu mẫu (PLAN Bước 4.3).
+ * seed-smoke.ts — Seed dữ liệu mẫu (PLAN Bước 4.3) + 4 flow preset mặc định.
  * ⚠️ CHỈ dùng dữ liệu GIẢ. KHÔNG dùng secret thật đã lộ trong doc.
  */
 import { createContext } from '../src/context.js';
 import * as store from '../src/modules/stores.js';
+
+async function seedPresets(ctx: ReturnType<typeof createContext>) {
+ // 1) GitHub - tạo repo
+ await store.seedFlowPresetIfAbsent(ctx, {
+ name: 'GitHub - Tạo repo',
+ description: 'Tạo repository mới cho user hiện tại.',
+ service: 'github.com',
+ business: 'create-repo',
+ stopOnError: true,
+ inputs: [{ name: 'repoName', required: true, source: 'runtime' }],
+ credentialRefs: [{ placeholder: 'github.token', key: 'github.token' }],
+ steps: [
+ {
+ id: 'createRepo',
+ method: 'POST',
+ urlTemplate: 'https://api.github.com/user/repos',
+ headers: { Authorization: 'Bearer {{github.token}}', Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
+ bodyTemplate: '{"name":"{{repoName | lower | replace(" ", "-")}}","private":true}',
+ extract: [
+ { field: 'repoUrl', jsonPath: '$.html_url', pinToVar: 'github.lastRepoUrl' },
+ { field: 'repoFullName', jsonPath: '$.full_name' },
+ ],
+ },
+ ],
+ });
+
+ // 2) GitHub - get user
+ await store.seedFlowPresetIfAbsent(ctx, {
+ name: 'GitHub - Get user',
+ description: 'Lấy thông tin user hiện tại theo token.',
+ service: 'github.com',
+ business: 'get-user',
+ stopOnError: true,
+ inputs: [],
+ credentialRefs: [{ placeholder: 'github.token', key: 'github.token' }],
+ steps: [
+ {
+ id: 'getUser',
+ method: 'GET',
+ urlTemplate: 'https://api.github.com/user',
+ headers: { Authorization: 'Bearer {{github.token}}', Accept: 'application/vnd.github+json' },
+ extract: [
+ { field: 'login', jsonPath: '$.login', pinToVar: 'github.login' },
+ { field: 'userId', jsonPath: '$.id' },
+ ],
+ },
+ ],
+ });
+
+ // 3) GitHub - dispatch workflow
+ await store.seedFlowPresetIfAbsent(ctx, {
+ name: 'GitHub - Dispatch workflow',
+ description: 'Kích hoạt workflow_dispatch cho 1 workflow.',
+ service: 'github.com',
+ business: 'dispatch-workflow',
+ stopOnError: true,
+ inputs: [
+ { name: 'owner', required: true, source: 'runtime' },
+ { name: 'repo', required: true, source: 'runtime' },
+ { name: 'workflowId', required: true, source: 'runtime' },
+ { name: 'ref', required: true, source: 'runtime' },
+ ],
+ credentialRefs: [{ placeholder: 'github.token', key: 'github.token' }],
+ steps: [
+ {
+ id: 'dispatch',
+ method: 'POST',
+ urlTemplate: 'https://api.github.com/repos/{{input.owner}}/{{input.repo}}/actions/workflows/{{input.workflowId}}/dispatches',
+ headers: { Authorization: 'Bearer {{github.token}}', Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
+ bodyTemplate: '{"ref":"{{input.ref}}"}',
+ extract: [],
+ },
+ ],
+ });
+
+ // 4) Cloudflare - get account id
+ await store.seedFlowPresetIfAbsent(ctx, {
+ name: 'Cloudflare - Lấy account id',
+ description: 'Lấy danh sách account, trích account id đầu tiên.',
+ service: 'cloudflare.com',
+ business: 'get-account-id',
+ stopOnError: true,
+ inputs: [],
+ credentialRefs: [{ placeholder: 'cloudflare.token', key: 'cloudflare.token' }],
+ steps: [
+ {
+ id: 'accounts',
+ method: 'GET',
+ urlTemplate: 'https://api.cloudflare.com/client/v4/accounts',
+ headers: { Authorization: 'Bearer {{cloudflare.token}}' },
+ extract: [{ field: 'accountId', jsonPath: '$.result[0].id', pinToVar: 'cloudflare.accountId' }],
+ },
+ ],
+ });
+
+ console.log('[seed] flow presets: 4 (github repo/user/dispatch, cloudflare account id)');
+}
 
 async function main() {
  const ctx = createContext();

@@ -1,6 +1,6 @@
 /**
  * routes.ts — Đăng ký toàn bộ REST API (prefix /api). Response chuẩn { ok, data?, error? }.
- * Map [SYS] 4 + 10.4/10.5.
+ * Map [SYS] 4 + 10.4/10.5 + addendum v1.2 (catalogs, flow-presets, credential-keys).
  */
 import type { FastifyInstance } from 'fastify';
 import type { AppContext } from '../context.js';
@@ -12,7 +12,6 @@ import { issueToMarkdown } from '../lib/markdown.js';
 import { resolveTemplate } from '../engine/placeholder.js';
 import { listTransforms } from '../engine/transforms.js';
 import { runSandbox } from '../engine/sandbox.js';
-import { normalizeCredentialPayload } from '../lib/credential-import.js';
 import { now } from '../lib/ids.js';
 
 export function registerRoutes(app: FastifyInstance, ctx: AppContext): void {
@@ -26,7 +25,6 @@ export function registerRoutes(app: FastifyInstance, ctx: AppContext): void {
  if (auth !== `Bearer ${token}`) return reply.code(401).send(err('Unauthorized'));
  });
 
- // Health
  app.get('/api/health', async () => ok({ status: 'up', storage: ctx.config.storageMode }));
 
  /* ---------- Owners & Credentials ([SYS] 4.1) ---------- */
@@ -82,7 +80,6 @@ export function registerRoutes(app: FastifyInstance, ctx: AppContext): void {
  return ok({ deleted: true });
  });
 
- /** Lộ giá trị thật (đã qua confirm ở FE) — trả plaintext CHỦ ĐÍCH cho 1 credential. */
  app.post('/api/owners/:id/credentials/:credId/reveal', async (req, reply) => {
  const { id, credId } = req.params as { id: string; credId: string };
  await store.addLog(ctx, {
@@ -174,12 +171,28 @@ export function registerRoutes(app: FastifyInstance, ctx: AppContext): void {
  const owner = await store.createOwner(ctx, o.email, o.isSaveRtdbEmail ?? true);
  ownersCreated++;
  const creds = b.credentials?.[oldOwnerId] ?? [];
- for (const c of creds) {
- await store.addCredential(ctx, owner.id, c);
- credsCreated++;
- }
+ for (const c of creds) { await store.addCredential(ctx, owner.id, c); credsCreated++; }
  }
  return ok({ ownersCreated, credsCreated });
+ });
+
+ /* ---------- Catalogs (danh mục dùng chung) ---------- */
+ app.get('/api/catalogs', async (req) => {
+ const q = req.query as { field?: string };
+ return ok(await store.listCatalog(ctx, q.field ?? 'misc'));
+ });
+ app.post('/api/catalogs', async (req, reply) => {
+ const b = req.body as { field?: string; value?: string };
+ if (!b?.field || !b?.value) return reply.code(400).send(err('field & value là bắt buộc'));
+ return ok(await store.addCatalog(ctx, b.field, b.value));
+ });
+
+ /* ---------- Flow presets (mẫu flow dùng chung) ---------- */
+ app.get('/api/flow-presets', async () => ok(await store.listFlowPresets(ctx)));
+ app.post('/api/flow-presets', async (req, reply) => {
+ const b = req.body as any;
+ if (!b?.name || !Array.isArray(b?.steps)) return reply.code(400).send(err('name & steps[] là bắt buộc'));
+ return ok(await store.saveFlowPreset(ctx, b));
  });
 
  /* ---------- Templates / Fetch Builder ([SYS] 4.3, 5) ---------- */
@@ -270,8 +283,7 @@ export function registerRoutes(app: FastifyInstance, ctx: AppContext): void {
  /* ---------- Variables ([SYS] 10.4) ---------- */
  app.get('/api/variables', async (req) => {
  const q = req.query as { scope?: string };
- const scope = q.scope ?? 'global';
- return ok(await store.listVariables(ctx, scope));
+ return ok(await store.listVariables(ctx, q.scope ?? 'global'));
  });
  app.post('/api/variables', async (req, reply) => {
  const b = req.body as { scope?: string; key?: string; value?: unknown; source?: 'manual' | 'extracted' };
