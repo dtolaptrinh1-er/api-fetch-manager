@@ -4,13 +4,14 @@
 > Mục tiêu: chống "dễ vỡ" khi nhiều agent chỉnh sửa/thêm tính năng. Agent làm đúng luật + tự verify bằng `npm test` / `npm run build` local trước khi commit (dự án chạy máy cá nhân, KHÔNG dùng CI).
 
 ## Bảng ký hiệu tài liệu → file
-| Ký hiệu | File |
-|---|---|
-| [REQ] | `docs/SPEC-PLAN/00.YEUCAU.md` |
-| [SYS] | `docs/SPEC-PLAN/01.SPEC.md` |
-| [UI] | `docs/SPEC-PLAN/02.SPEC_UI.md` |
-| [PLAN] | `docs/SPEC-PLAN/03.PLAN.md` |
-| [PROMPT] | `docs/SPEC-PLAN/04.PROMPT.md` |
+
+| Ký hiệu  | File                           |
+| -------- | ------------------------------ |
+| [REQ]    | `docs/SPEC-PLAN/00.YEUCAU.md`  |
+| [SYS]    | `docs/SPEC-PLAN/01.SPEC.md`    |
+| [UI]     | `docs/SPEC-PLAN/02.SPEC_UI.md` |
+| [PLAN]   | `docs/SPEC-PLAN/03.PLAN.md`    |
+| [PROMPT] | `docs/SPEC-PLAN/04.PROMPT.md`  |
 
 ---
 
@@ -39,6 +40,7 @@ repo root (monolith Docker)
 ## 2. Quy tắc BẤT BIẾN (vi phạm = reject)
 
 ### Backend
+
 - Mọi env **prefix `API_FETCH_MANAGER_`**, khai báo + validate trong `env.ts`.
 - Credential **luôn mã hoá at-rest** (AES-256-GCM). API **không bao giờ** trả plaintext trừ endpoint `/reveal` (đã có audit log).
 - Log **không chứa token** (dùng `redact()`), advanced JS **chỉ chạy trong sandbox**.
@@ -47,6 +49,7 @@ repo root (monolith Docker)
 - Gọi HTTP ngoài phải qua **policy timeout + retry** (đã có ở executor & FirebaseDb).
 
 ### Frontend
+
 - **KHÔNG dùng `alert/confirm/prompt`** của browser. Mọi thông báo qua `ui.notify` / `ui.confirm`.
 - Modal: có nút ✕, **click ngoài KHÔNG đóng**, tự scrollbar. Dùng component `Modal` sẵn có.
 - Mọi button có **icon + tooltip**. Chức năng quan trọng có confirm.
@@ -57,16 +60,16 @@ repo root (monolith Docker)
 
 ## 3. Ma trận "đụng file X → phải cập nhật Y" (chống vỡ)
 
-| Khi bạn đổi… | Bắt buộc cập nhật kèm |
-|---|---|
-| `routes.ts` (thêm/sửa endpoint) | `frontend/src/api/api.ts` (client + types) · `backend/test/api.test.ts` · [SYS] `docs/SPEC-PLAN/01.SPEC.md` §4 |
-| `lib/types.ts` | mọi nơi dùng type + `api.ts` types tương ứng |
-| `db/rtdb.ts` (interface Db / schema) | `docker/database.rules.json` (.indexOn) · test adapter · [SYS] `docs/SPEC-PLAN/01.SPEC.md` §3, §10.4 |
-| `engine/*` | test trong `backend/test/*` · [SYS] `docs/SPEC-PLAN/01.SPEC.md` §5, §10 |
-| `env.ts` (thêm biến) | `.env.example` (đủ 5 mục chú giải) · `docs/OPERATIONS.md` |
-| Thêm page/feature FE | `App.tsx` nav · `tokens.css` nếu cần token mới · [UI] `docs/SPEC-PLAN/02.SPEC_UI.md` |
-| Thêm dịch vụ API ngoài | `docs/services/<tên-service>.md` (theo `docs/services/_TEMPLATE.md`) |
-| BẤT KỲ thay đổi nào | Điền + cập nhật Change Request template tương ứng trong `.templates/change-request/` |
+| Khi bạn đổi…                         | Bắt buộc cập nhật kèm                                                                                          |
+| ------------------------------------ | -------------------------------------------------------------------------------------------------------------- |
+| `routes.ts` (thêm/sửa endpoint)      | `frontend/src/api/api.ts` (client + types) · `backend/test/api.test.ts` · [SYS] `docs/SPEC-PLAN/01.SPEC.md` §4 |
+| `lib/types.ts`                       | mọi nơi dùng type + `api.ts` types tương ứng                                                                   |
+| `db/rtdb.ts` (interface Db / schema) | `docker/database.rules.json` (.indexOn) · test adapter · [SYS] `docs/SPEC-PLAN/01.SPEC.md` §3, §10.4           |
+| `engine/*`                           | test trong `backend/test/*` · [SYS] `docs/SPEC-PLAN/01.SPEC.md` §5, §10                                        |
+| `env.ts` (thêm biến)                 | `.env.example` (đủ 5 mục chú giải) · `docs/OPERATIONS.md`                                                      |
+| Thêm page/feature FE                 | `App.tsx` nav · `tokens.css` nếu cần token mới · [UI] `docs/SPEC-PLAN/02.SPEC_UI.md`                           |
+| Thêm dịch vụ API ngoài               | `docs/services/<tên-service>.md` (theo `docs/services/_TEMPLATE.md`)                                           |
+| BẤT KỲ thay đổi nào                  | Điền + cập nhật Change Request template tương ứng trong `.templates/change-request/`                           |
 
 ---
 
@@ -85,14 +88,16 @@ repo root (monolith Docker)
 ## 5. Session Completion
 
 Khi user yêu cầu **Session Completion**:
+
 - Chỉ tóm tắt các thay đổi trong session hiện tại **chưa commit**. Không nhắc lại thay đổi đã nằm trong commit trước.
-- Ghi commit summary trực tiếp vào `.git/vstool-commit-template.txt`.
+- Ghi commit summary trực tiếp vào `.git/.git-o-commit-template`.
 - **Không commit**. Để user tự review và commit thủ công.
 - Cuối commit message phải có mục **Applying Code Changes**: hướng dẫn ngắn gọn cách developer áp dụng/kiểm tra thay đổi (lệnh chạy, bước verify, lưu ý dữ liệu/env nếu có).
 
 ---
 
 ## 6. Không được làm
+
 - Không commit secret/khoá thật. Secret trong tài liệu gốc coi như đã lộ → phải rotate.
 - Không đổi interface `Db`, response shape, hay modal rules mà không cập nhật toàn bộ nơi liên quan.
 - Không thêm dependency nặng nếu chuẩn `node:*` giải quyết được (tiền lệ: dùng REST+JWT thay firebase-admin).
