@@ -14,11 +14,12 @@
 | [UI+] | `docs/SPEC-PLAN/02.SPEC_UI-addendum-v1.3.md` (lưu đồ owner-centric + UI Test suite) |
 | [UI+] | `docs/SPEC-PLAN/02.SPEC_UI-addendum-v1.4.md` (owner search · status bar · DataList bắt buộc · service tabs) |
 | [UI+] | `docs/SPEC-PLAN/02.SPEC_UI-addendum-v1.5.md` (UI Self-Test Mode) |
+| [UI+] | `docs/SPEC-PLAN/02.SPEC_UI-addendum-v1.6.md` (docs viewer dịch vụ + tích hợp Fetch Builder) |
 | [DESIGN] | `docs/SPEC-PLAN/02.SPEC_DESIGN-supabase.md` (palette/tokens áp cho theme) |
 | [PLAN] | `docs/SPEC-PLAN/03.PLAN.md` |
 | [PROMPT] | `docs/SPEC-PLAN/04.PROMPT.md` |
 
-> **Nguồn chân lý triển khai nâng cấp v2:** page **`01.PROMPT_MASTER`** trên ClickUp (gộp 6 nhóm việc). Các addendum [UI+] v1.3–v1.5 là bản trong-repo tương ứng của page đó. Khi mâu thuẫn: [UI]/[UI+] thắng phần giao diện · [SYS] thắng phần kỹ thuật/dữ liệu · [PLAN] quyết thứ tự & DoD · addendum mới hơn ưu tiên cho mục nó đề cập.
+> **Nguồn chân lý triển khai nâng cấp v2:** page **`01.PROMPT_MASTER`** trên ClickUp (gộp 7 nhóm việc). Các addendum [UI+] v1.3–v1.6 là bản trong-repo tương ứng của page đó. Khi mâu thuẫn: [UI]/[UI+] thắng phần giao diện · [SYS] thắng phần kỹ thuật/dữ liệu · [PLAN] quyết thứ tự & DoD · addendum mới hơn ưu tiên cho mục nó đề cập.
 
 ---
 
@@ -36,7 +37,7 @@ repo root (monolith Docker)
 └── frontend (React + TS + Vite)
     ├── src/styles/tokens.css ← design tokens. KHÔNG hardcode màu
     ├── src/components/        ← Button/Modal/Field/Icon/ui (nền tảng UI)
-    ├── src/features/          ← execute · inspect
+    ├── src/features/          ← execute · inspect · docs (panel tài liệu dịch vụ)
     └── src/pages/             ← Credentials/FetchBuilder/History/Issues/Extractions/Variables
 ```
 
@@ -64,6 +65,7 @@ repo root (monolith Docker)
 - Mọi màu/spacing qua **CSS variables** trong `tokens.css`. Font mảnh (300–400), spacing 4px.
 - Gọi API qua client `api.ts` (đã tự gắn `Authorization` header).
 - **[RULE v1.4] Mọi danh sách (table/card) BẮT BUỘC có filter · sort · export data (JSON/CSV) · export PDF** — dùng chung component `DataList`, không tự chế mỗi trang một kiểu.
+- **[RULE v1.6] Docs dịch vụ hiển thị KHÔNG che UI đang thao tác** (side panel/split-pane, không modal full-screen).
 
 ---
 
@@ -78,7 +80,7 @@ repo root (monolith Docker)
 | `env.ts` (thêm biến) | `.env.example` (đủ 5 mục chú giải) · `docs/OPERATIONS.md` |
 | Thêm page/feature FE | `App.tsx` nav · `tokens.css` nếu cần token mới · [UI] `docs/SPEC-PLAN/02.SPEC_UI.md` + addendum liên quan |
 | Thêm danh sách mới (list/table) | Dùng `DataList` (filter/sort/export) · [UI+] v1.4 |
-| Thêm dịch vụ API ngoài | `docs/services/<tên-service>.md` (theo `docs/services/_TEMPLATE.md`) |
+| Thêm/ sửa dịch vụ API ngoài | `docs/services/<tên-service>.md` (theo `docs/services/_TEMPLATE.md`: curl mẫu + tác dụng + response mẫu + link) · docs viewer [UI+] v1.6 |
 | BẤT KỲ thay đổi nào | Điền + cập nhật Change Request template tương ứng trong `.templates/change-request/` |
 
 ---
