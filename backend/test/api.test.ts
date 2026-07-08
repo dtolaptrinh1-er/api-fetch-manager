@@ -4,12 +4,18 @@ import { buildServer } from '../src/server.js';
 import { _resetConfigForTest, loadConfig } from '../src/config/env.js';
 
 // API-level integration test dùng app.inject() — không cần mở port thật.
+// Xoá ADMIN_TOKEN để không dính token từ .env local (nếu không sẽ bị 401).
 process.env.API_FETCH_MANAGER_STORAGE_MODE = 'memory';
+delete process.env.API_FETCH_MANAGER_ADMIN_TOKEN;
 
 describe('API integration (inject)', () => {
   let app: FastifyInstance;
 
   beforeAll(async () => {
+    // reset cache config để build server KHÔNG dính token đã cache/từ .env
+    delete process.env.API_FETCH_MANAGER_ADMIN_TOKEN;
+    process.env.API_FETCH_MANAGER_STORAGE_MODE = 'memory';
+    _resetConfigForTest();
     const built = await buildServer();
     app = built.app;
     await app.ready();
@@ -39,12 +45,10 @@ describe('API integration (inject)', () => {
     const list = await app.inject({ method: 'GET', url: `/api/owners/${ownerId}/credentials` });
     const creds = list.json().data;
     expect(creds).toHaveLength(1);
-    // Masked, KHÔNG chứa plaintext
     expect(creds[0].masked).not.toBe(plaintext);
     expect(JSON.stringify(creds)).not.toContain(plaintext);
     expect(creds[0].masked).toContain('****');
 
-    // reveal (sau confirm) trả plaintext đúng
     const reveal = await app.inject({
       method: 'POST',
       url: `/api/owners/${ownerId}/credentials/${creds[0].id}/reveal`,
@@ -95,8 +99,6 @@ describe('API integration (inject)', () => {
     const list = await app.inject({ method: 'GET', url: '/api/variables?scope=global' });
     expect(list.json().data['api.base'].value).toBe('https://x');
   });
-
-
 
   it('admin token bảo vệ /api khi được cấu hình, nhưng vẫn mở /api/health', async () => {
     process.env.API_FETCH_MANAGER_STORAGE_MODE = 'memory';
