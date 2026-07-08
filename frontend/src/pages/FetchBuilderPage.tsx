@@ -1,25 +1,18 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { api, type FetchTemplate, type FlowStep, type FlowInput } from '../api/api';
 import { useApp } from '../lib/appStore';
 import { useUI } from '../components/ui';
 import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
-import { Field, Input, Textarea } from '../components/Field';
+import { Field, Input, Textarea, Select } from '../components/Field';
 import { Icon } from '../components/Icon';
 import { Combobox } from '../components/Combobox';
-import { KeyPicker } from '../components/KeyPicker';
 import { ExecuteModal } from '../features/execute/ExecuteModal';
-
-interface FlowPreset extends Omit<FetchTemplate, 'updatedAt'> {
- description?: string;
- isPreset: true;
-}
 
 function newStep(): FlowStep {
  return { id: 'step_' + Math.random().toString(36).slice(2, 8), method: 'GET', urlTemplate: '', headers: {}, bodyTemplate: '', extract: [] };
 }
-
-function blankTemplate(): FetchTemplate {
+function blank(): FetchTemplate {
  return { id: '', name: '', service: '', business: '', stopOnError: true, inputs: [], credentialRefs: [], steps: [newStep()], createdAt: 0, updatedAt: 0 };
 }
 
@@ -27,13 +20,16 @@ export function FetchBuilderPage() {
  const { ownerId } = useApp();
  const ui = useUI();
  const [templates, setTemplates] = useState<FetchTemplate[]>([]);
+ const [presets, setPresets] = useState<FetchTemplate[]>([]);
  const [editing, setEditing] = useState<FetchTemplate | null>(null);
  const [executing, setExecuting] = useState<FetchTemplate | null>(null);
  const [presetOpen, setPresetOpen] = useState(false);
 
  const load = async () => setTemplates(await api.get<FetchTemplate[]>('/templates'));
+ const loadPresets = async () => setPresets(await api.get<FetchTemplate[]>('/flow-presets'));
  useEffect(() => {
  load().catch((e) => ui.notify({ title: 'Lỗi', message: e.message, kind: 'error' }));
+ loadPresets().catch(() => {});
  // eslint-disable-next-line react-hooks/exhaustive-deps
  }, []);
 
@@ -50,18 +46,21 @@ export function FetchBuilderPage() {
  setExecuting(t);
  };
 
+ const fromPreset = (p: FetchTemplate) => {
+ setPresetOpen(false);
+ setEditing({ ...structuredClone(p), id: '', isPreset: false, name: p.name + ' (copy)', createdAt: 0, updatedAt: 0 });
+ };
+
  return (
  <div className="page">
  <div className="page-head">
- <div>
  <h1 className="page-title">Fetch Builder</h1>
- <p className="page-desc">Tạo API tái sử dụng từ curl · flow nhiều step · trích xuất dữ liệu</p>
- </div>
+ <span className="page-desc">Tạo API tái sử dụng từ curl · flow nhiều step · trích xuất dữ liệu</span>
  </div>
 
  <div className="toolbar">
- <Button icon={Icon.plus({})} tooltip="Tạo flow mới từ đầu" variant="primary" onClick={() => setEditing(blankTemplate())}>Flow mới</Button>
- <Button icon={Icon.copy({})} tooltip="Tạo flow từ mẫu có sẵn (lưu trong database)" onClick={() => setPresetOpen(true)}>Tạo từ mẫu</Button>
+ <Button icon={Icon.plus({})} tooltip="Tạo flow mới từ đầu" variant="primary" onClick={() => setEditing(blank())}>Flow mới</Button>
+ <Button icon={Icon.copy({})} tooltip="Tạo flow từ mẫu có sẵn (GitHub, Cloudflare...)" onClick={() => setPresetOpen(true)}>Tạo từ mẫu</Button>
  </div>
 
  {templates.length === 0 ? (
@@ -87,50 +86,32 @@ export function FetchBuilderPage() {
  </table>
  )}
 
- {editing && <BuilderModal initial={editing} ownerId={ownerId} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} ui={ui} />}
- {executing && ownerId && <ExecuteModal ownerId={ownerId} template={executing} onClose={() => setExecuting(null)} ui={ui} />}
- {presetOpen && <PresetPicker onClose={() => setPresetOpen(false)} onPick={(tpl) => { setPresetOpen(false); setEditing(tpl); }} ui={ui} />}
- </div>
- );
-}
-
-/* -------------------- Preset picker (Tạo từ mẫu) -------------------- */
-function PresetPicker({ onClose, onPick, ui }: { onClose: () => void; onPick: (t: FetchTemplate) => void; ui: ReturnType<typeof useUI> }) {
- const [presets, setPresets] = useState<FlowPreset[]>([]);
- useEffect(() => {
- api.get<FlowPreset[]>('/flow-presets').then(setPresets).catch((e) => ui.notify({ title: 'Lỗi', message: e.message, kind: 'error' }));
- // eslint-disable-next-line react-hooks/exhaustive-deps
- }, []);
- const use = (p: FlowPreset) => {
- const tpl: FetchTemplate = {
- id: '', name: p.name, service: p.service, business: p.business, stopOnError: p.stopOnError ?? true,
- inputs: p.inputs ?? [], credentialRefs: p.credentialRefs ?? [], steps: p.steps ?? [newStep()], createdAt: 0, updatedAt: 0,
- };
- onPick(tpl);
- };
- return (
- <Modal title="Tạo từ mẫu" onClose={onClose} footer={<Button variant="ghost" tooltip="Đóng" onClick={onClose}>Đóng</Button>}>
- {presets.length === 0 ? (
- <p className="empty">Chưa có mẫu nào. Chạy seed hoặc lưu 1 flow thành mẫu.</p>
- ) : (
+ {editing && <BuilderModal initial={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); loadPresets(); }} ui={ui} />}
+ {executing && ownerId && <ExecuteModal template={executing} ownerId={ownerId} onClose={() => setExecuting(null)} ui={ui} />}
+ {presetOpen && (
+ <Modal title="Tạo từ mẫu" onClose={() => setPresetOpen(false)} footer={<Button variant="ghost" tooltip="Đóng" onClick={() => setPresetOpen(false)}>Đóng</Button>}>
+ {presets.length === 0 ? <p className="empty">Chưa có mẫu nào trong database.</p> : (
  <div className="sel-list">
  {presets.map((p) => (
  <div className="kv-row" key={p.id}>
- <span className="k">{p.name}<br /><small className="muted">{p.description}</small></span>
- <span className="v"><Button icon={Icon.copy({})} tooltip="Dùng mẫu này" onClick={() => use(p)}>Dùng</Button></span>
+ <span className="k">{p.name} <span className="mono">({p.service})</span></span>
+ <Button icon={Icon.copy({})} tooltip="Tạo flow mới từ mẫu này" onClick={() => fromPreset(p)}>Dùng mẫu</Button>
  </div>
  ))}
  </div>
  )}
  </Modal>
+ )}
+ </div>
  );
 }
 
-/* -------------------- Builder Modal -------------------- */
-function BuilderModal({ initial, ownerId, onClose, onSaved, ui }: { initial: FetchTemplate; ownerId: string | null; onClose: () => void; onSaved: () => void; ui: ReturnType<typeof useUI> }) {
+function BuilderModal({ initial, onClose, onSaved, ui }: { initial: FetchTemplate; onClose: () => void; onSaved: () => void; ui: ReturnType<typeof useUI> }) {
+ const { ownerId } = useApp();
  const [tpl, setTpl] = useState<FetchTemplate>(structuredClone(initial));
  const [activeStep, setActiveStep] = useState(0);
  const [curlOpen, setCurlOpen] = useState(false);
+ const [jsOpen, setJsOpen] = useState(false);
  const [saving, setSaving] = useState(false);
 
  const patch = (p: Partial<FetchTemplate>) => setTpl((t) => ({ ...t, ...p }));
@@ -139,60 +120,67 @@ function BuilderModal({ initial, ownerId, onClose, onSaved, ui }: { initial: Fet
  const delStep = (i: number) => setTpl((t) => ({ ...t, steps: t.steps.filter((_, x) => x !== i) }));
  const step = tpl.steps[activeStep];
 
- const save = async () => {
+ const save = async (asPreset = false) => {
  if (!tpl.name.trim() || tpl.steps.length === 0) return ui.notify({ title: 'Thiếu dữ liệu', message: 'Cần tên flow và ít nhất 1 step.', kind: 'warning' });
  setSaving(true);
  try {
  const payload = { name: tpl.name, service: tpl.service, business: tpl.business, stopOnError: tpl.stopOnError, inputs: tpl.inputs, credentialRefs: tpl.credentialRefs, steps: tpl.steps };
- if (tpl.id) await api.put(`/templates/${tpl.id}`, payload);
- else await api.post('/templates', payload);
+ if (asPreset) {
+ await api.post('/flow-presets', payload);
+ ui.notify({ title: 'Đã lưu thành mẫu', message: tpl.name, kind: 'success' });
+ } else if (tpl.id) {
+ await api.put(`/templates/${tpl.id}`, payload);
  ui.notify({ title: 'Đã lưu flow', message: tpl.name, kind: 'success' });
+ } else {
+ await api.post('/templates', payload);
+ ui.notify({ title: 'Đã lưu flow', message: tpl.name, kind: 'success' });
+ }
  onSaved();
  } catch (e: any) {
  ui.notify({ title: 'Lỗi lưu', message: e.message, kind: 'error' });
  } finally { setSaving(false); }
  };
 
- const saveAsPreset = async () => {
- if (!tpl.name.trim() || tpl.steps.length === 0) return ui.notify({ title: 'Thiếu dữ liệu', message: 'Cần tên flow và ít nhất 1 step.', kind: 'warning' });
- try {
- await api.post('/flow-presets', { name: tpl.name, description: `${tpl.service} · ${tpl.business}`, service: tpl.service, business: tpl.business, stopOnError: tpl.stopOnError, inputs: tpl.inputs, credentialRefs: tpl.credentialRefs, steps: tpl.steps });
- ui.notify({ title: 'Đã lưu thành mẫu', message: `Mẫu "${tpl.name}" dùng được cho owner khác.`, kind: 'success' });
- } catch (e: any) {
- ui.notify({ title: 'Lỗi', message: e.message, kind: 'error' });
- }
- };
-
  return (
- <Modal title={tpl.id ? 'Sửa flow' : 'Flow mới'} onClose={onClose} wide footer={
+ <Modal
+ title={tpl.id ? 'Sửa flow' : 'Flow mới'}
+ onClose={onClose}
+ wide
+ footer={
  <>
- <Button variant="ghost" icon={Icon.upload({})} tooltip="Tạo step từ lệnh curl" onClick={() => setCurlOpen(true)}>Từ curl</Button>
- <Button variant="ghost" icon={Icon.copy({})} tooltip="Lưu flow này thành mẫu (dùng cho owner khác)" onClick={saveAsPreset}>Lưu thành mẫu</Button>
+ <Button variant="ghost" icon={Icon.download({})} tooltip="Nhập nhanh 1 step từ lệnh curl" onClick={() => setCurlOpen(true)}>Từ curl</Button>
+ <div className="toolbar__spacer" />
  <Button variant="ghost" tooltip="Hủy" onClick={onClose}>Hủy</Button>
- <Button variant="primary" icon={Icon.save({})} tooltip="Lưu flow" loading={saving} onClick={save}>Lưu flow</Button>
+ <Button icon={Icon.save({})} tooltip="Lưu flow này thành mẫu dùng chung cho owner khác" loading={saving} onClick={() => save(true)}>Lưu thành mẫu</Button>
+ <Button variant="primary" icon={Icon.save({})} tooltip="Lưu flow" loading={saving} onClick={() => save(false)}>Lưu flow</Button>
  </>
- }>
+ }
+ >
  <div className="form-scroll">
- <Field label="Tên flow"><Combobox field="flowName" value={tpl.name} onChange={(v) => patch({ name: v })} placeholder="vd: GitHub - Tạo repo" /></Field>
+ <div className="row">
+ <Field label="Tên flow"><Combobox field="flow-name" value={tpl.name} onChange={(v) => patch({ name: v })} placeholder="GitHub - Tạo repo" /></Field>
  <Field label="Service"><Combobox field="service" value={tpl.service} onChange={(v) => patch({ service: v })} placeholder="github.com" /></Field>
  <Field label="Business"><Combobox field="business" value={tpl.business} onChange={(v) => patch({ business: v })} placeholder="create-repo" /></Field>
+ </div>
 
  <InputsEditor inputs={tpl.inputs ?? []} onChange={(inputs) => patch({ inputs })} />
 
- <div className="row" style={{ alignItems: 'flex-start' }}>
+ <div className="row" style={{ alignItems: 'stretch' }}>
  <div style={{ flex: '0 0 200px' }}>
- <label className="muted">Steps</label>
+ <label className="field-label">Steps</label>
  {tpl.steps.map((s, i) => (
- <div key={s.id} className={`step-item ${i === activeStep ? 'success' : ''}`} onClick={() => setActiveStep(i)} style={{ cursor: 'pointer' }}>
- <span className="badge badge--primary">{s.method}</span>
- <span>{i + 1}. {s.id}</span>
- <span data-tooltip="Xóa step này" style={{ marginLeft: 'auto', cursor: 'pointer' }} onClick={(e) => { e.stopPropagation(); delStep(i); }}>{Icon.trash({})}</span>
+ <div key={s.id} className={'step-item' + (i === activeStep ? ' running' : '')} onClick={() => setActiveStep(i)} style={{ cursor: 'pointer' }}>
+ <span className="badge">{s.method}</span>
+ <span style={{ flex: 1 }}>{i + 1}. {s.id}</span>
+ <span data-tooltip="Xóa step này" onClick={(e) => { e.stopPropagation(); delStep(i); }} style={{ cursor: 'pointer' }}>{Icon.trash({})}</span>
  </div>
  ))}
- <Button icon={Icon.plus({})} tooltip="Thêm step" onClick={addStep}>Thêm step</Button>
+ <Button icon={Icon.plus({})} tooltip="Thêm step vào flow" onClick={addStep}>Thêm step</Button>
  </div>
  <div style={{ flex: 1 }}>
- {step ? <StepEditor step={step} ownerId={ownerId} onChange={(p) => patchStep(activeStep, p)} /> : <p className="muted">Chọn hoặc thêm step.</p>}
+ {step ? (
+ <StepEditor step={step} ownerId={ownerId} onChange={(p) => patchStep(activeStep, p)} onOpenJs={() => setJsOpen(true)} ui={ui} />
+ ) : <p className="empty">Chọn hoặc thêm step.</p>}
  </div>
  </div>
  </div>
@@ -201,6 +189,7 @@ function BuilderModal({ initial, ownerId, onClose, onSaved, ui }: { initial: Fet
  setTpl((t) => ({ ...t, steps: [...t.steps, s], credentialRefs: [...(t.credentialRefs ?? []), ...refs] }));
  setCurlOpen(false);
  }} ui={ui} />}
+ {jsOpen && <SandboxModal onClose={() => setJsOpen(false)} ui={ui} />}
  </Modal>
  );
 }
@@ -209,62 +198,61 @@ function InputsEditor({ inputs, onChange }: { inputs: FlowInput[]; onChange: (v:
  const add = () => onChange([...inputs, { name: '', source: 'runtime', required: false }]);
  const patch = (i: number, p: Partial<FlowInput>) => { const c = [...inputs]; c[i] = { ...c[i], ...p }; onChange(c); };
  return (
- <div className="field">
- <label>Inputs</label>
+ <div>
+ <label className="field-label">Inputs</label>
  {inputs.map((inp, i) => (
  <div className="row" key={i}>
  <input className="input" placeholder="tên input" value={inp.name} onChange={(e) => patch(i, { name: e.target.value })} />
- <select className="select" value={inp.source} data-tooltip="runtime=hỏi khi chạy; store=lấy từ kho biến; context=từ step trước" onChange={(e) => patch(i, { source: e.target.value as any })}>
+ <select className="select" value={inp.source} onChange={(e) => patch(i, { source: e.target.value as any })} data-tooltip="runtime=hỏi khi chạy; store=lấy từ kho biến; context=từ step trước">
  <option value="runtime">runtime</option>
  <option value="store">store</option>
  <option value="context">context</option>
  </select>
  {inp.source === 'store' && <input className="input" placeholder="varKey" value={inp.varKey ?? ''} onChange={(e) => patch(i, { varKey: e.target.value })} />}
  {inp.source === 'context' && <input className="input" placeholder="stepId.field" value={inp.ref ?? ''} onChange={(e) => patch(i, { ref: e.target.value })} />}
- <Button iconOnly icon={Icon.trash({})} tooltip="Xóa input" variant="danger" onClick={() => onChange(inputs.filter((_, x) => x !== i))} />
+ <button type="button" className="btn btn--icon" data-tooltip="Xóa input" onClick={() => onChange(inputs.filter((_, x) => x !== i))}>{Icon.trash({})}</button>
  </div>
  ))}
- <Button icon={Icon.plus({})} tooltip="Thêm input" onClick={add}>Thêm input</Button>
+ <Button icon={Icon.plus({})} tooltip="Thêm input cho flow" onClick={add}>Thêm input</Button>
  </div>
  );
 }
 
-const BODY_PRESETS: Record<string, string> = {
- json: '{\n  \n}',
- raw: '',
- form: 'key=value',
+const HEADER_PRESETS: Record<string, string> = {
+ 'Authorization': 'Bearer {{github.token}}',
+ 'Content-Type': 'application/json',
+ 'Accept': 'application/vnd.github+json',
 };
 
-function StepEditor({ step, ownerId, onChange }: { step: FlowStep; ownerId: string | null; onChange: (p: Partial<FlowStep>) => void }) {
+function StepEditor({ step, ownerId, onChange, onOpenJs, ui }: { step: FlowStep; ownerId: string | null; onChange: (p: Partial<FlowStep>) => void; onOpenJs: () => void; ui: ReturnType<typeof useUI> }) {
  const headers = step.headers ?? {};
  const hEntries = Object.entries(headers);
- const bodyRef = useRef<HTMLTextAreaElement>(null);
- const [bodyFormat, setBodyFormat] = useState<'json' | 'raw' | 'form'>('json');
+ const [bodyFmt, setBodyFmt] = useState<'json' | 'raw'>('json');
+ const [keyPickerOpen, setKeyPickerOpen] = useState(false);
 
  const setHeader = (idx: number, k: string, v: string) => {
  const e = hEntries.map((x) => [...x] as [string, string]);
  e[idx] = [k, v];
  onChange({ headers: Object.fromEntries(e.filter(([kk]) => kk)) });
  };
- const addHeader = () => onChange({ headers: { ...headers, '': '' } });
- const addPresetHeader = (k: string, v: string) => onChange({ headers: { ...headers, [k]: v } });
+ const addHeader = (k = '', v = '') => onChange({ headers: { ...headers, [k]: v } });
  const extract = step.extract ?? [];
 
  const beautify = () => {
  try {
  onChange({ bodyTemplate: JSON.stringify(JSON.parse(step.bodyTemplate || '{}'), null, 2) });
  } catch {
- /* body có placeholder → không parse được, bỏ qua */
+ ui.notify({ title: 'Không beautify được', message: 'Body không phải JSON hợp lệ.', kind: 'warning' });
  }
  };
 
- const insertIntoBody = (ph: string) => {
- const ta = bodyRef.current;
- const cur = step.bodyTemplate ?? '';
- if (!ta) return onChange({ bodyTemplate: cur + ph });
- const start = ta.selectionStart ?? cur.length;
- const end = ta.selectionEnd ?? cur.length;
- onChange({ bodyTemplate: cur.slice(0, start) + ph + cur.slice(end) });
+ const resolvePreview = async () => {
+ try {
+ const r = await api.post<{ result: string }>('/engine/resolve', { template: step.urlTemplate, scope: {} });
+ ui.notify({ title: 'Giá trị resolved (URL)', message: <code>{r.result}</code>, kind: 'info' });
+ } catch (e: any) {
+ ui.notify({ title: 'Lỗi', message: e.message, kind: 'error' });
+ }
  };
 
  return (
@@ -272,53 +260,86 @@ function StepEditor({ step, ownerId, onChange }: { step: FlowStep; ownerId: stri
  <div className="row">
  <Field label="Method">
  <select className="select" value={step.method} onChange={(e) => onChange({ method: e.target.value })}>
- {['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].map((m) => <option key={m}>{m}</option>)}
+ {['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].map((m) => <option key={m} value={m}>{m}</option>)}
  </select>
  </Field>
  <Field label="URL template"><Input value={step.urlTemplate} onChange={(e) => onChange({ urlTemplate: e.target.value })} placeholder="https://api.github.com/user/repos" /></Field>
  </div>
 
- <label className="muted">Headers</label>
+ <label className="field-label">Headers</label>
  {hEntries.map(([k, v], i) => (
  <div className="row" key={i}>
  <input className="input" placeholder="header" value={k} onChange={(e) => setHeader(i, e.target.value, v)} />
  <input className="input" placeholder="value" value={v} onChange={(e) => setHeader(i, k, e.target.value)} />
  </div>
  ))}
- <div className="row">
- <Button icon={Icon.plus({})} tooltip="Thêm header trống" onClick={addHeader}>Header</Button>
- <Button tooltip="Thêm header Authorization: Bearer {{...}}" onClick={() => addPresetHeader('Authorization', 'Bearer {{github.token}}')}>+ Auth</Button>
- <Button tooltip="Thêm header Content-Type: application/json" onClick={() => addPresetHeader('Content-Type', 'application/json')}>+ JSON</Button>
- <KeyPicker ownerId={ownerId} onInsert={(ph) => addPresetHeader('Authorization', `Bearer ${ph}`)} />
+ <div className="toolbar">
+ <Button icon={Icon.plus({})} tooltip="Thêm header trống" onClick={() => addHeader()}>Thêm header</Button>
+ <select className="select" style={{ maxWidth: 200 }} data-tooltip="Chèn header preset thường dùng" onChange={(e) => { if (e.target.value) { addHeader(e.target.value, HEADER_PRESETS[e.target.value]); e.target.value = ''; } }}>
+ <option value="">+ Preset header…</option>
+ {Object.keys(HEADER_PRESETS).map((h) => <option key={h} value={h}>{h}</option>)}
+ </select>
+ <Button icon={Icon.key({})} tooltip="Chọn credential key → chèn {{key}} placeholder" onClick={() => setKeyPickerOpen(true)}>Chọn key</Button>
  </div>
 
- <div className="row" style={{ marginTop: 'var(--sp-3)' }}>
- <Field label="Body định dạng">
- <select className="select" value={bodyFormat} onChange={(e) => { const f = e.target.value as any; setBodyFormat(f); if (!step.bodyTemplate) onChange({ bodyTemplate: BODY_PRESETS[f] }); }}>
+ <div className="row">
+ <Field label="Định dạng body">
+ <select className="select" value={bodyFmt} onChange={(e) => setBodyFmt(e.target.value as any)}>
  <option value="json">JSON</option>
- <option value="raw">raw</option>
- <option value="form">form</option>
+ <option value="raw">Raw</option>
  </select>
  </Field>
- <div style={{ display: 'flex', gap: 'var(--sp-1)', alignItems: 'flex-end' }}>
- <Button icon={Icon.zap({})} tooltip="Beautify JSON cho dễ đọc" onClick={beautify}>Beautify</Button>
- <KeyPicker ownerId={ownerId} onInsert={insertIntoBody} />
+ <div style={{ display: 'flex', alignItems: 'flex-end' }}>
+ {bodyFmt === 'json' && <Button icon={Icon.zap({})} tooltip="Format lại JSON cho dễ đọc" onClick={beautify}>Beautify</Button>}
  </div>
  </div>
- <Textarea ref={bodyRef as any} rows={5} value={step.bodyTemplate} onChange={(e) => onChange({ bodyTemplate: e.target.value })} placeholder={'{ "name": "{{repoName | lower}}" }'} />
- <p className="ph-hint">Placeholder: {'{{credential}}'} · {'{{var.x}}'} · {'{{ctx.step.field}}'} · {'{{input.x | upper}}'}</p>
+ <Field label="Body template"><Textarea rows={5} value={step.bodyTemplate ?? ''} onChange={(e) => onChange({ bodyTemplate: e.target.value })} placeholder={'{ "name": "{{repoName | lower}}" }'} /></Field>
+ <p className="page-desc">
+ Placeholder: <span className="ph-hint">{'{{credential}}'}</span> <span className="ph-hint">{'{{var.x}}'}</span> <span className="ph-hint">{'{{ctx.step.field}}'}</span> <span className="ph-hint">{'{{input.x | upper}}'}</span>
+ {' · '}<a onClick={onOpenJs} style={{ cursor: 'pointer' }}>Test JS sandbox</a>
+ {' · '}<a onClick={resolvePreview} style={{ cursor: 'pointer' }}>Xem giá trị resolved (URL)</a>
+ </p>
 
- <label className="muted">Extract (JSONPath)</label>
+ <label className="field-label">Extract (JSONPath)</label>
  {extract.map((ex, i) => (
  <div className="row" key={i}>
  <input className="input" placeholder="field" value={ex.field} onChange={(e) => { const c = [...extract]; c[i] = { ...c[i], field: e.target.value }; onChange({ extract: c }); }} />
  <input className="input" placeholder="$.path" value={ex.jsonPath} onChange={(e) => { const c = [...extract]; c[i] = { ...c[i], jsonPath: e.target.value }; onChange({ extract: c }); }} />
- <input className="input" placeholder="pin var (tuỳ chọn)" value={ex.pinToVar ?? ''} onChange={(e) => { const c = [...extract]; c[i] = { ...c[i], pinToVar: e.target.value || undefined }; onChange({ extract: c }); }} />
- <Button iconOnly icon={Icon.trash({})} tooltip="Xóa dòng extract" variant="danger" onClick={() => onChange({ extract: extract.filter((_, x) => x !== i) })} />
+ <input className="input" placeholder="pinToVar (tùy chọn)" value={ex.pinToVar ?? ''} onChange={(e) => { const c = [...extract]; c[i] = { ...c[i], pinToVar: e.target.value || undefined }; onChange({ extract: c }); }} />
+ <button type="button" className="btn btn--icon" data-tooltip="Xóa extract" onClick={() => onChange({ extract: extract.filter((_, x) => x !== i) })}>{Icon.trash({})}</button>
  </div>
  ))}
- <Button icon={Icon.plus({})} tooltip="Thêm dòng extract" onClick={() => onChange({ extract: [...extract, { field: '', jsonPath: '' }] })}>Thêm extract</Button>
+ <Button icon={Icon.plus({})} tooltip="Thêm rule trích xuất" onClick={() => onChange({ extract: [...extract, { field: '', jsonPath: '' }] })}>Thêm extract</Button>
+
+ {keyPickerOpen && <KeyPickerModal ownerId={ownerId} onClose={() => setKeyPickerOpen(false)} onPick={(key) => {
+ addHeader('Authorization', `Bearer {{${key}}}`);
+ setKeyPickerOpen(false);
+ ui.notify({ title: 'Đã chèn', message: `Đã thêm header Authorization dùng {{${key}}}`, kind: 'success' });
+ }} ui={ui} />}
  </div>
+ );
+}
+
+function KeyPickerModal({ ownerId, onClose, onPick, ui }: { ownerId: string | null; onClose: () => void; onPick: (key: string) => void; ui: ReturnType<typeof useUI> }) {
+ const [keys, setKeys] = useState<{ key: string; service: string }[]>([]);
+ useEffect(() => {
+ if (!ownerId) return;
+ api.get<{ key: string; service: string }[]>(`/owners/${ownerId}/credential-keys`).then(setKeys).catch((e) => ui.notify({ title: 'Lỗi', message: e.message, kind: 'error' }));
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ }, [ownerId]);
+ return (
+ <Modal title="Chọn credential key" onClose={onClose} footer={<Button variant="ghost" tooltip="Đóng" onClick={onClose}>Đóng</Button>}>
+ {!ownerId ? <p className="empty">Chọn owner trước.</p> : keys.length === 0 ? <p className="empty">Owner này chưa có credential.</p> : (
+ <div className="sel-list">
+ {keys.map((k) => (
+ <div className="kv-row" key={k.key}>
+ <span className="k mono">{k.key} <span className="badge">{k.service}</span></span>
+ <Button icon={Icon.plus({})} tooltip={`Chèn {{${k.key}}} vào header Authorization`} onClick={() => onPick(k.key)}>Chèn</Button>
+ </div>
+ ))}
+ </div>
+ )}
+ </Modal>
  );
 }
 
@@ -335,13 +356,33 @@ function CurlModal({ onClose, onParsed, ui }: { onClose: () => void; onParsed: (
  finally { setBusy(false); }
  };
  return (
- <Modal title="Tạo step từ curl" onClose={onClose} wide footer={
- <>
+ <Modal title="Nhập từ curl" onClose={onClose} wide footer={<>
  <Button variant="ghost" tooltip="Hủy" onClick={onClose}>Hủy</Button>
- <Button variant="primary" icon={Icon.zap({})} tooltip="Parse curl thành step" loading={busy} onClick={parse}>Parse</Button>
- </>
- }>
+ <Button variant="primary" icon={Icon.download({})} tooltip="Parse curl thành step" loading={busy} onClick={parse}>Parse</Button>
+ </>}>
  <Textarea rows={6} value={curl} onChange={(e) => setCurl(e.target.value)} placeholder={`curl -X POST https://api.github.com/user/repos -H "Authorization: Bearer TOKEN" -d '{"name":"demo"}'`} />
+ </Modal>
+ );
+}
+
+function SandboxModal({ onClose, ui }: { onClose: () => void; ui: ReturnType<typeof useUI> }) {
+ const [code, setCode] = useState("return (inputs.repoName || 'repo').replace(/\\s+/g,'-').toLowerCase();");
+ const [result, setResult] = useState('');
+ const test = async () => {
+ try {
+ const r = await api.post<{ result?: string; error?: string }>('/engine/sandbox-test', { code, inputs: { repoName: 'My Repo' } });
+ if (r.error) { setResult(''); ui.notify({ title: 'Sandbox lỗi', message: r.error, kind: 'error' }); }
+ else setResult(r.result ?? '');
+ } catch (e: any) { ui.notify({ title: 'Lỗi', message: e.message, kind: 'error' }); }
+ };
+ return (
+ <Modal title="Test JS sandbox" onClose={onClose} wide footer={<>
+ <Button variant="ghost" tooltip="Đóng" onClick={onClose}>Đóng</Button>
+ <Button variant="primary" icon={Icon.play({})} tooltip="Chạy thử trong sandbox" onClick={test}>Test</Button>
+ </>}>
+ <span className="sandbox-badge">Chạy trong sandbox: cấm network/fs, timeout 200ms</span>
+ <Textarea rows={5} value={code} onChange={(e) => setCode(e.target.value)} />
+ {result !== '' && <p>Kết quả: <code>{result}</code></p>}
  </Modal>
  );
 }

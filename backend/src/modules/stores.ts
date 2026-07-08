@@ -9,8 +9,6 @@ import type {
  Owner,
  Credential,
  FetchTemplate,
- FlowPreset,
- CatalogEntry,
  HistoryEntry,
  LogEntry,
  Issue,
@@ -64,22 +62,6 @@ export async function addCredential(
  return { ...created, id };
 }
 
-/** Thêm nhiều credential 1 lần (import-json). service suy từ prefix key nếu thiếu. */
-export async function addCredentialsBulk(
- ctx: AppContext,
- ownerId: string,
- items: { key: string; value: string; service?: string; label?: string }[],
-): Promise<number> {
- let n = 0;
- for (const it of items) {
- if (!it || !it.key || it.value === undefined) continue;
- const service = it.service ?? (it.key.includes('.') ? it.key.split('.')[0] : 'unknown');
- await addCredential(ctx, ownerId, { key: it.key, value: String(it.value), service, label: it.label });
- n++;
- }
- return n;
-}
-
 export async function updateCredential(
  ctx: AppContext,
  ownerId: string,
@@ -102,12 +84,6 @@ export async function removeCredential(ctx: AppContext, ownerId: string, credId:
  await ctx.db.keys.remove(`credentials/${ownerId}/${credId}`);
 }
 
-/** Danh sách key credential của owner (không giải mã) — cho KeyPicker. */
-export async function listCredentialKeys(ctx: AppContext, ownerId: string): Promise<{ key: string; service: string; label?: string }[]> {
- const all = await listCredentials(ctx, ownerId);
- return all.map((c) => ({ key: c.key, service: c.service, label: c.label }));
-}
-
 /** Lấy credential đã giải mã theo key (in-memory, không log). Trả map key→plaintext. */
 export async function resolveCredentialsByKey(
  ctx: AppContext,
@@ -123,7 +99,43 @@ export async function resolveCredentialsByKey(
  return out;
 }
 
-/* ---------------- Templates (rtdb-keys/templates) ---------------- */
+/** Danh sách key credential (không giá trị) — cho KeyPicker. Trả [{key, service}] distinct. */
+export async function listCredentialKeys(ctx: AppContext, ownerId: string): Promise<{ key: string; service: string }[]> {
+ const all = await listCredentials(ctx, ownerId);
+ const seen = new Map<string, string>();
+ for (const c of all) if (!seen.has(c.key)) seen.set(c.key, c.service);
+ return [...seen].map(([key, service]) => ({ key, service }));
+}
+
+/* ---------------- Catalogs (rtdb-keys/catalogs/<field>) — danh mục dùng chung ---------------- */
+
+export async function listCatalog(ctx: AppContext, field: string): Promise<string[]> {
+ const arr = await ctx.db.keys.get<string[]>(`catalogs/${field}`);
+ return Array.isArray(arr) ? arr : [];
+}
+export async function addCatalog(ctx: AppContext, field: string, value: string): Promise<string[]> {
+ const cur = await listCatalog(ctx, field);
+ if (value && !cur.includes(value)) cur.push(value);
+ await ctx.db.keys.set(`catalogs/${field}`, cur);
+ return cur;
+}
+
+/* ---------------- Flow presets (rtdb-keys/flow-presets) — mẫu flow dùng chung ---------------- */
+
+export async function listFlowPresets(ctx: AppContext): Promise<FetchTemplate[]> {
+ const map = await ctx.db.keys.query<FetchTemplate>('flow-presets');
+ return Object.entries(map).map(([id, t]) => ({ ...t, id }));
+}
+export async function saveFlowPreset(
+ ctx: AppContext,
+ preset: Omit<FetchTemplate, 'id' | 'createdAt' | 'updatedAt'>,
+): Promise<FetchTemplate> {
+ const id = await ctx.db.keys.push('flow-presets', { ...preset, isPreset: true, createdAt: now(), updatedAt: now() });
+ const created = (await ctx.db.keys.get<FetchTemplate>(`flow-presets/${id}`))!;
+ return { ...created, id };
+}
+
+/* ---------------- Templates (lưu trong rtdb-keys/templates) ---------------- */
 
 export async function listTemplates(ctx: AppContext): Promise<FetchTemplate[]> {
  const map = await ctx.db.keys.query<FetchTemplate>('templates');
@@ -142,35 +154,6 @@ export async function updateTemplate(ctx: AppContext, id: string, patch: Partial
 }
 export async function removeTemplate(ctx: AppContext, id: string): Promise<void> {
  await ctx.db.keys.remove(`templates/${id}`);
-}
-
-/* ---------------- Flow presets (rtdb-keys/flow-presets) ---------------- */
-
-export async function listFlowPresets(ctx: AppContext): Promise<FlowPreset[]> {
- const map = await ctx.db.keys.query<FlowPreset>('flow-presets');
- return Object.entries(map).map(([id, p]) => ({ ...p, id }));
-}
-export async function saveFlowPreset(ctx: AppContext, preset: Omit<FlowPreset, 'id' | 'createdAt' | 'isPreset'>): Promise<FlowPreset> {
- const id = await ctx.db.keys.push('flow-presets', { ...preset, isPreset: true, createdAt: now() });
- return (await ctx.db.keys.get<FlowPreset>(`flow-presets/${id}`))!;
-}
-/** Seed preset nếu chưa có (idempotent theo name). */
-export async function seedFlowPresetIfAbsent(ctx: AppContext, preset: Omit<FlowPreset, 'id' | 'createdAt' | 'isPreset'>): Promise<void> {
- const existing = await listFlowPresets(ctx);
- if (existing.some((p) => p.name === preset.name)) return;
- await saveFlowPreset(ctx, preset);
-}
-
-/* ---------------- Catalogs (rtdb-keys/catalogs/<field>) — dùng chung ---------------- */
-
-export async function listCatalog(ctx: AppContext, field: string): Promise<string[]> {
- const map = await ctx.db.keys.query<CatalogEntry>(`catalogs/${field}`);
- return Object.values(map).map((e) => e.value);
-}
-export async function addCatalog(ctx: AppContext, field: string, value: string): Promise<void> {
- const current = await listCatalog(ctx, field);
- if (current.includes(value)) return;
- await ctx.db.keys.push(`catalogs/${field}`, { value, createdAt: now() });
 }
 
 /* ---------------- History (rtdb-history) ---------------- */

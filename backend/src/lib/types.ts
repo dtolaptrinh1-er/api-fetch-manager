@@ -69,29 +69,10 @@ export interface FetchTemplate {
  inputs?: FlowInput[];
  credentialRefs?: CredentialRef[];
  steps: FlowStep[];
+ /** true nếu là mẫu dùng chung (flow-presets), không gắn owner. */
+ isPreset?: boolean;
  createdAt: number;
  updatedAt: number;
-}
-
-/** Flow preset — mẫu lưu trong DB, tái dùng cho nhiều owner ([UI] addendum v1.2 §8). */
-export interface FlowPreset {
- id: string;
- name: string;
- description?: string;
- isPreset: true;
- service: string;
- business: string;
- stopOnError?: boolean;
- inputs?: FlowInput[];
- credentialRefs?: CredentialRef[];
- steps: FlowStep[];
- createdAt: number;
-}
-
-/** Danh mục dùng chung (Combobox) — vd field 'service', 'business', 'flowName'. */
-export interface CatalogEntry {
- value: string;
- createdAt: number;
 }
 
 export interface HistoryEntry {
@@ -123,7 +104,7 @@ export interface LogEntry {
 export interface IssueElement {
  selector: string;
  outerHTML: string;
- /** Text hiển thị của element (innerText cắt gọn) — giúp biết đúng chức năng đã chọn. */
+ /** Text (innerText) của element đã chọn — để user biết chức năng nào được chọn. */
  text?: string;
  boundingRect?: Record<string, number>;
 }

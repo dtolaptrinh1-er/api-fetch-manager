@@ -3,7 +3,9 @@ import { api } from '../api/api';
 
 /**
  * Combobox ([UI] addendum v1.2 §3): nhập tự do HOẶC chọn từ danh mục dùng chung.
- * Danh mục lưu backend `/api/catalogs?field=`. Có nút lưu giá trị hiện tại vào danh mục.
+ * - Gõ tay để lọc / nhập giá trị mới.
+ * - Chọn từ dropdown danh mục (lấy từ /api/catalogs?field=).
+ * - Nút "Lưu vào danh mục" (POST /api/catalogs) để owner khác tái dùng.
  */
 export function Combobox({
  field,
@@ -18,7 +20,7 @@ export function Combobox({
 }) {
  const [open, setOpen] = useState(false);
  const [options, setOptions] = useState<string[]>([]);
- const boxRef = useRef<HTMLDivElement>(null);
+ const boxRef = useRef<HTMLDivElement | null>(null);
 
  const load = async () => {
  try {
@@ -44,10 +46,10 @@ export function Combobox({
  const v = value.trim();
  if (!v) return;
  try {
- await api.post('/catalogs', { field, value: v });
- await load();
+ const next = await api.post<string[]>('/catalogs', { field, value: v });
+ setOptions(next);
  } catch {
- /* im lặng, không chặn nhập */
+ /* ignore */
  }
  };
 
@@ -66,8 +68,9 @@ export function Combobox({
  <button
  type="button"
  className="btn btn--icon"
- data-tooltip="Lưu giá trị này vào danh mục dùng chung"
+ data-tooltip="Lưu giá trị này vào danh mục dùng chung để owner khác tái dùng"
  onClick={saveToCatalog}
+ style={{ flex: '0 0 30px' }}
  >
  +
  </button>

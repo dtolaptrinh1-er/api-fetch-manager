@@ -23,7 +23,7 @@ function cssPath(el: HTMLElement): string {
  while (cur && cur.nodeType === 1 && depth < 4) {
  let sel = cur.tagName.toLowerCase();
  if (cur.className && typeof cur.className === 'string') {
- const cls = cur.className.split(/\s+/).filter((c) => c && !c.startsWith('inspect-')).slice(0, 2);
+ const cls = cur.className.split(/\s+/).filter((c) => c && !c.startsWith('inspect-') && c !== 'afm-tooltip').slice(0, 2);
  if (cls.length) sel += '.' + cls.join('.');
  }
  parts.unshift(sel);
@@ -33,54 +33,80 @@ function cssPath(el: HTMLElement): string {
  return parts.join(' > ');
 }
 
+function elText(el: HTMLElement): string {
+ return (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 200);
+}
+
 /**
- * Inspect Element Mode ([UI] 6 + addendum v1.2 §5):
- * - Bật bằng hotkey (App.tsx) hoặc nút Topbar. Hoạt động ở mọi form/modal.
+ * Inspect Element Mode ([UI] 6 + SPEC_UI addendum v1.2 §5).
+ * - Bật qua hotkey toàn cục (Ctrl+Shift+J) hoặc nút Topbar.
  * - Toolbar: Tạo issue (n) · Tạm ngưng · Thoát. ESC = thoát.
- * - Tạm ngưng / mở form issue → nhả con trỏ (class inspect-paused).
- * - Mỗi element lưu selector + outerHTML + text. Panel dạng row có số thứ tự.
+ * - Tạm ngưng / mở form issue -> nhả con trỏ (class inspect-paused), không bắt sự kiện.
+ * - Chạy được cả trên modal (chỉ loại trừ thanh công cụ inspect).
+ * - Mỗi element lưu thêm text; panel hiển thị #, selector, text theo row.
  */
-export function InspectMode() {
- const { inspect, setInspect } = useApp();
+export function InspectMode({ onCreated }: { onCreated?: () => void }) {
+ const { inspect, setInspect, inspectPaused, setInspectPaused } = useApp();
  const ui = useUI();
  const [selected, setSelected] = useState<SelEl[]>([]);
- const [paused, setPaused] = useState(false);
  const [formOpen, setFormOpen] = useState(false);
  const hoverRef = useRef<HTMLElement | null>(null);
  const selectedRef = useRef<SelEl[]>([]);
- const pausedRef = useRef(false);
  selectedRef.current = selected;
- pausedRef.current = paused || formOpen;
+
+ const capturing = inspect && !inspectPaused && !formOpen;
 
  const exit = () => {
  setInspect(false);
- setSelected([]);
- setPaused(false);
+ setInspectPaused(false);
  setFormOpen(false);
  };
 
- // đồng bộ class con trỏ: khi paused/formOpen thì nhả con trỏ
- useEffect(() => {
- if (!inspect) return;
- document.body.classList.toggle('inspect-paused', paused || formOpen);
- }, [paused, formOpen, inspect]);
-
+ // Dọn class + reset khi tắt inspect
  useEffect(() => {
  if (!inspect) {
  document.body.classList.remove('inspecting', 'inspect-paused');
- document.querySelectorAll('.inspect-hover,.inspect-selected').forEach((n) => n.classList.remove('inspect-hover', 'inspect-selected'));
+ document.querySelectorAll('.inspect-hover,.inspect-selected').forEach((n) =>
+ n.classList.remove('inspect-hover', 'inspect-selected'),
+ );
  setSelected([]);
- setPaused(false);
  setFormOpen(false);
+ setInspectPaused(false);
  return;
  }
  document.body.classList.add('inspecting');
+ }, [inspect, setInspectPaused]);
 
- // chỉ loại trừ chính thanh công cụ inspect (KHÔNG loại trừ .overlay → chạy được trên modal)
- const isTool = (t: HTMLElement) => t.closest('.inspect-toolbar, .afm-tooltip');
+ // Nhả con trỏ khi tạm ngưng hoặc mở form
+ useEffect(() => {
+ if (!inspect) return;
+ document.body.classList.toggle('inspect-paused', inspectPaused || formOpen);
+ if (hoverRef.current) {
+ hoverRef.current.classList.remove('inspect-hover');
+ hoverRef.current = null;
+ }
+ }, [inspect, inspectPaused, formOpen]);
+
+ // ESC = thoát (khi không mở form)
+ useEffect(() => {
+ if (!inspect) return;
+ const onKey = (e: KeyboardEvent) => {
+ if (e.key === 'Escape' && !formOpen) {
+ e.preventDefault();
+ exit();
+ }
+ };
+ window.addEventListener('keydown', onKey, true);
+ return () => window.removeEventListener('keydown', onKey, true);
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ }, [inspect, formOpen]);
+
+ // Bắt hover/click khi đang capturing
+ useEffect(() => {
+ if (!capturing) return;
+ const isTool = (t: HTMLElement) => t.closest('.inspect-toolbar');
 
  const onOver = (e: MouseEvent) => {
- if (pausedRef.current) return;
  const t = e.target as HTMLElement;
  if (isTool(t)) return;
  if (hoverRef.current) hoverRef.current.classList.remove('inspect-hover');
@@ -88,7 +114,6 @@ export function InspectMode() {
  if (!t.classList.contains('inspect-selected')) t.classList.add('inspect-hover');
  };
  const onClick = (e: MouseEvent) => {
- if (pausedRef.current) return;
  const t = e.target as HTMLElement;
  if (isTool(t)) return;
  e.preventDefault();
@@ -102,53 +127,51 @@ export function InspectMode() {
  t.classList.add('inspect-selected');
  setSelected((s) => [
  ...s,
- {
- el: t,
- selector: cssPath(t),
- outerHTML: t.outerHTML.slice(0, 500),
- text: (t.innerText || t.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 200),
- rect: t.getBoundingClientRect(),
- },
+ { el: t, selector: cssPath(t), outerHTML: t.outerHTML.slice(0, 500), text: elText(t), rect: t.getBoundingClientRect() },
  ]);
  }
  };
- const onKey = (e: KeyboardEvent) => {
- if (e.key === 'Escape') { e.preventDefault(); exit(); }
- };
-
  document.addEventListener('mouseover', onOver, true);
  document.addEventListener('click', onClick, true);
- document.addEventListener('keydown', onKey, true);
  return () => {
  document.removeEventListener('mouseover', onOver, true);
  document.removeEventListener('click', onClick, true);
- document.removeEventListener('keydown', onKey, true);
  };
- // eslint-disable-next-line react-hooks/exhaustive-deps
- }, [inspect]);
+ }, [capturing]);
 
  if (!inspect) return null;
 
  return (
  <>
  <div className="inspect-toolbar">
- <Button icon={Icon.bug({})} tooltip="Tạo issue từ các element đã chọn" variant="primary" disabled={selected.length === 0} onClick={() => { setFormOpen(true); }}>
+ <Button
+ icon={Icon.bug({})}
+ tooltip="Mở form tạo issue từ các element đã chọn (con trỏ sẽ nhả ra)"
+ variant="primary"
+ disabled={selected.length === 0}
+ onClick={() => setFormOpen(true)}
+ >
  Tạo issue ({selected.length})
  </Button>
  <Button
- icon={Icon.target({})}
- tooltip={paused ? 'Tiếp tục chọn element' : 'Tạm ngưng để thao tác form khác (không bắt sự kiện)'}
- onClick={() => setPaused((p) => !p)}
+ icon={inspectPaused ? Icon.play({}) : Icon.history({})}
+ tooltip={inspectPaused ? 'Tiếp tục bắt element' : 'Tạm ngưng để thao tác form khác, giữ nguyên element đã chọn'}
+ onClick={() => setInspectPaused(!inspectPaused)}
  >
- {paused ? 'Tiếp tục' : 'Tạm ngưng'}
+ {inspectPaused ? 'Tiếp tục' : 'Tạm ngưng'}
  </Button>
- <Button icon={Icon.x({})} tooltip="Thoát chế độ inspect (ESC)" variant="ghost" onClick={exit}>Thoát</Button>
+ <Button icon={Icon.x({})} tooltip="Thoát chế độ inspect (ESC)" variant="ghost" onClick={exit}>
+ Thoát
+ </Button>
  </div>
  {formOpen && (
  <IssueForm
  elements={selected}
  onClose={() => setFormOpen(false)}
- onSaved={() => { setFormOpen(false); exit(); }}
+ onSaved={() => {
+ setFormOpen(false);
+ onCreated?.();
+ }}
  ui={ui}
  />
  )}
@@ -207,18 +230,21 @@ function IssueForm({
  wide
  footer={
  <>
- <Button variant="ghost" tooltip="Huỷ, không tạo issue" onClick={onClose}>Huỷ</Button>
- <Button variant="primary" icon={Icon.save({})} tooltip="Lưu issue kèm element đã chọn" loading={saving} onClick={save}>Lưu issue</Button>
+ <Button variant="ghost" tooltip="Hủy, không tạo issue" onClick={onClose}>Hủy</Button>
+ <Button variant="primary" icon={Icon.save({})} tooltip="Lưu issue vào hệ thống" loading={saving} onClick={save}>Lưu issue</Button>
  </>
  }
  >
  <Field label="Tiêu đề"><Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="VD: Button lưu không phản hồi" /></Field>
- <Field label="Mô tả (các bước gây lỗi)"><Textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} /></Field>
+ <Field label="Mô tả / các bước gây lỗi"><Textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} /></Field>
  <Field label="Kết quả mong muốn"><Textarea rows={2} value={expectedResult} onChange={(e) => setExpectedResult(e.target.value)} /></Field>
- <div className="field">
- <label>Element đã chọn ({elements.length})</label>
+ <label className="field-label">Element đã chọn ({elements.length})</label>
  <div className="sel-list">
- <div className="sel-item"><span className="idx">#</span><span className="sel">Selector</span><span className="txt">Text đã chọn</span></div>
+ <div className="sel-item" style={{ fontWeight: 500 }}>
+ <span className="idx">#</span>
+ <span className="sel">Selector</span>
+ <span className="txt">Text đã chọn</span>
+ </div>
  {elements.map((e, i) => (
  <div className="sel-item" key={i}>
  <span className="idx">{i + 1}</span>
@@ -226,7 +252,6 @@ function IssueForm({
  <span className="txt">{e.text || '—'}</span>
  </div>
  ))}
- </div>
  </div>
  </Modal>
  );

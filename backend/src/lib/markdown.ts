@@ -16,7 +16,7 @@ export function issueToMarkdown(issue: Issue): string {
  issue.elements.forEach((el, i) => {
  const html = (el.outerHTML ?? '').replace(/\s+/g, ' ').trim().slice(0, 120);
  const text = (el.text ?? '').replace(/\s+/g, ' ').trim().slice(0, 80);
- const textPart = text ? ` — text: "${text}"` : '';
+ const textPart = text ? ` — text: \"${text}\"` : '';
  lines.push(`${i + 1}. \`${el.selector}\`${textPart} — ${html}`);
  });
  }
