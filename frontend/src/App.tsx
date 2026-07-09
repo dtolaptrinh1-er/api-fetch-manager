@@ -94,7 +94,7 @@ function Shell() {
               data-tooltip={collapsed ? 'Mở rộng sidebar' : 'Thu gọn sidebar'}
               onClick={() => setCollapsed((c) => !c)}
             >
-              {collapsed ? Icon.chevronRight({}) : Icon.chevronLeft({})}
+              {Icon.menu({})}
             </button>
           </div>
 
