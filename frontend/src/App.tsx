@@ -40,11 +40,8 @@ function Shell() {
   const docs = useDocs();
   const [page, setPage] = useState<Page>('owners');
   const [drawer, setDrawer] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
   const [tokenOpen, setTokenOpen] = useState(false);
   const [tokenDraft, setTokenDraft] = useState(() => getAdminToken() ?? '');
-
-  const activeOwner = owners.find((o) => o.id === ownerId);
 
   const saveToken = () => {
     const trimmed = tokenDraft.trim();
@@ -61,26 +58,27 @@ function Shell() {
   };
 
   const groups = [...new Set(NAV.map((n) => n.group))];
+  const activeOwner = owners.find((o) => o.id === ownerId);
 
   return (
     <div className="app">
       <header className="topbar">
         <button className="btn btn--ghost btn--icon menu-toggle" data-tooltip="Mở menu điều hướng" onClick={() => setDrawer((d) => !d)}>{Icon.menu({})}</button>
-        <div className="topbar__logo" style={{ color: 'var(--primary)', fontWeight: 'var(--fw-medium)' as any }}>🍌 API Fetch Manager</div>
+        <div className="topbar__logo">🍌 API Fetch Manager</div>
         <div className="topbar__spacer" />
         {activeOwner && (
-          <div
+          <span
             data-tooltip="Owner đang thao tác (context toàn cục)"
             style={{
-              display: 'inline-flex', alignItems: 'center', gap: 'var(--sp-2)',
-              padding: '2px var(--sp-3)', borderRadius: '9999px',
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '2px 10px', borderRadius: 999,
               border: '1px solid var(--border)', background: 'var(--bg-subtle)',
-              fontSize: 'var(--fs-xs)', color: 'var(--text-muted)', maxWidth: '30vw', overflow: 'hidden',
+              fontSize: 'var(--fs-xs)', color: 'var(--text-muted)', maxWidth: 220,
             }}
           >
-            <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--success)', flex: '0 0 7px' }} />
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--success)', flex: '0 0 6px' }} />
             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{activeOwner.email}</span>
-          </div>
+          </span>
         )}
         <OwnerCombobox owners={owners} ownerId={ownerId} onSelect={setOwnerId} />
         <Button iconOnly icon={Icon.info({})} tooltip="Mở tài liệu dịch vụ (side-panel)" onClick={() => docs.open('github')} />
@@ -90,61 +88,39 @@ function Shell() {
       </header>
 
       <div className="body">
-        <nav
-          className={drawer ? 'sidebar open' : 'sidebar'}
-          style={{
-            width: collapsed ? 64 : undefined,
-            flex: collapsed ? '0 0 64px' : undefined,
-            display: 'flex', flexDirection: 'column',
-          }}
-        >
-          {/* Brand header (Stitch) */}
-          <div style={{ padding: 'var(--sp-3)', borderBottom: '1px solid var(--border)', marginBottom: 'var(--sp-2)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 'var(--sp-2)' }}>
-            {!collapsed && (
-              <div style={{ minWidth: 0 }}>
-                <div style={{ color: 'var(--primary)', fontWeight: 'var(--fw-medium)' as any, fontSize: 'var(--fs-base)' }}>API Fetch Manager</div>
-                <div style={{ color: 'var(--text-muted)', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 'var(--fw-medium)' as any }}>v1.0.4-stable</div>
-              </div>
-            )}
-            <button
-              className="btn btn--ghost btn--icon"
-              data-tooltip={collapsed ? 'Mở rộng sidebar' : 'Thu gọn sidebar'}
-              onClick={() => setCollapsed((c) => !c)}
-              style={{ flex: '0 0 30px' }}
-            >
-              {collapsed ? Icon.chevronRight?.({}) ?? '›' : Icon.chevronLeft?.({}) ?? '‹'}
-            </button>
+        <nav className={drawer ? 'sidebar open' : 'sidebar'} style={{ display: 'flex', flexDirection: 'column' }}>
+          <div className="sidebar__brand" style={{ padding: 'var(--sp-3)', borderBottom: '1px solid var(--border)', marginBottom: 'var(--sp-2)' }}>
+            <div style={{ color: 'var(--primary)', fontWeight: 'var(--fw-medium)', fontSize: 'var(--fs-lg)' }}>API Fetch Manager</div>
+            <div style={{ color: 'var(--text-muted)', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 'var(--fw-medium)' }}>v2 · stitch</div>
           </div>
-
-          <div style={{ flex: 1, minHeight: 0, overflow: 'auto' }}>
-            {groups.map((g) => (
-              <div key={g}>
-                {!collapsed && <div className="sidebar__group-title">{g}</div>}
-                {NAV.filter((n) => n.group === g).map((n) => (
-                  <button
-                    key={n.id}
-                    className={n.id === page ? 'nav-item active' : 'nav-item'}
-                    data-tooltip={n.tip}
-                    onClick={() => { setPage(n.id); setDrawer(false); }}
-                    style={collapsed ? { justifyContent: 'center' } : undefined}
-                  >
-                    {n.icon} {!collapsed && n.label}
-                  </button>
-                ))}
-              </div>
-            ))}
-          </div>
-
-          {/* System Healthy card (Stitch) */}
-          {!collapsed && (
-            <div style={{ marginTop: 'var(--sp-2)', padding: 'var(--sp-3)', background: 'var(--bg-subtle)', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--sp-1)' }}>
-                <span style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 'var(--fw-medium)' as any, textTransform: 'uppercase', letterSpacing: '0.06em' }}>System Healthy</span>
-                <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--success)' }} />
-              </div>
-              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 'var(--fs-xs)', color: 'var(--primary)' }}>{activeOwner?.email ?? 'chưa chọn owner'}</div>
+          {groups.map((g) => (
+            <div key={g}>
+              <div className="sidebar__group-title">{g}</div>
+              {NAV.filter((n) => n.group === g).map((n) => (
+                <button
+                  key={n.id}
+                  className={n.id === page ? 'nav-item active' : 'nav-item'}
+                  data-tooltip={n.tip}
+                  onClick={() => { setPage(n.id); setDrawer(false); }}
+                >
+                  {n.icon} {n.label}
+                </button>
+              ))}
             </div>
-          )}
+          ))}
+          <div
+            className="sidebar__health"
+            style={{
+              marginTop: 'auto', padding: 'var(--sp-3)', borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border)', background: 'var(--bg-subtle)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+              <span style={{ fontSize: '10px', fontWeight: 'var(--fw-medium)', color: 'var(--text-muted)', letterSpacing: '0.04em' }}>SYSTEM HEALTHY</span>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--success)' }} />
+            </div>
+            <div className="mono" style={{ color: 'var(--primary)' }}>{activeOwner ? activeOwner.email : 'chưa chọn owner'}</div>
+          </div>
         </nav>
 
         <main className="content">
