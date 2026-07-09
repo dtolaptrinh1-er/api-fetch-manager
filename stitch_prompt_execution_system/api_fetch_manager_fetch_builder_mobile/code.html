@@ -131,7 +131,12 @@
             transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
         }
     </style>
-</head>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
 <body class="bg-surface text-on-surface font-body-base overflow-hidden">
 <!-- TopNavBar (Shared Component) -->
 <header class="h-topbar-height w-full fixed top-0 z-50 bg-surface border-b border-outline-variant flex items-center justify-between px-4">
@@ -273,7 +278,7 @@
 </footer>
 <!-- Docs Bottom Sheet / Overlay -->
 <div class="fixed inset-0 bg-black/60 backdrop-blur-sm z-[60] transition-opacity duration-300 opacity-0 pointer-events-none" id="docsOverlay">
-<div class="absolute bottom-0 left-0 right-0 h-[85vh] bg-surface-container rounded-t-xl border-t border-outline-variant transform translate-y-full bottom-sheet-transition p-4 flex flex-col" id="docsSheet">
+<div class="absolute bottom-0 left-0 right-0 h-[751px] bg-surface-container rounded-t-xl border-t border-outline-variant transform translate-y-full bottom-sheet-transition p-4 flex flex-col" id="docsSheet">
 <!-- Drag Handle -->
 <div class="w-10 h-1 bg-outline-variant rounded-full mx-auto mb-4 cursor-pointer" onclick="toggleDocs()"></div>
 <div class="flex items-center justify-between mb-4">
