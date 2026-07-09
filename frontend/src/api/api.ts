@@ -154,3 +154,64 @@ export interface ExtractionRecord {
  jsonPath: string;
  createdAt: number;
 }
+
+/* ------- Meta / status bar (addendum v1.4 §4) ------- */
+export interface AppMeta {
+ buildSha: string;
+ buildShaShort: string;
+ buildTime: string;
+ commitUrl: string;
+ env: string;
+ storage: string;
+ startedAt: number;
+ version: string;
+}
+
+/* ------- Services & Resources (addendum v1.4 §5) ------- */
+export interface ServiceDef {
+ id: string;
+ host: string;
+ label: string;
+ credentialKeyHint?: string;
+ createdAt: number;
+ updatedAt: number;
+}
+export interface ResourceItem {
+ id: string;
+ ownerId: string;
+ service: string;
+ resourceType: string;
+ label: string;
+ data: Record<string, unknown>;
+ createdAt: number;
+ updatedAt: number;
+}
+
+/* ------- Self-Test Mode (addendum v1.5) ------- */
+export interface SelfTestAssertion {
+ name: string;
+ pass: boolean;
+ expected?: unknown;
+ actual?: unknown;
+}
+export interface SelfTestScenarioResult {
+ scenarioId: string;
+ feature: string;
+ title: string;
+ captured: Record<string, unknown>;
+ builtCurl?: string;
+ assertions: SelfTestAssertion[];
+ result: 'pass' | 'fail';
+ elementText?: string;
+}
+export interface SelfTestRun {
+ runId: string;
+ scope: string;
+ startedAt: number;
+ finishedAt: number;
+ total: number;
+ passed: number;
+ failed: number;
+ scenarios: SelfTestScenarioResult[];
+}
+

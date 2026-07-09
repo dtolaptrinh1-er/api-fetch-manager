@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { api, type Variable } from '../api/api';
 import { useApp } from '../lib/appStore';
 import { useUI } from '../components/ui';
@@ -6,15 +6,19 @@ import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
 import { Field, Input } from '../components/Field';
 import { Icon } from '../components/Icon';
+import { DataList, type DataListColumn } from '../components/DataList';
+
+interface VarRow { key: string; value: unknown; updatedAt: number; source: string; }
 
 export function VariablesPage() {
-  const { ownerId } = useApp();
+  const { ownerId, owners } = useApp();
   const ui = useUI();
   const [tab, setTab] = useState<'global' | 'owner'>('global');
   const [vars, setVars] = useState<Record<string, Variable>>({});
   const [editOpen, setEditOpen] = useState(false);
 
   const scope = tab === 'global' ? 'global' : ownerId ?? 'global';
+  const ownerEmail = owners.find((o) => o.id === ownerId)?.email;
   const load = async () => setVars(await api.get<Record<string, Variable>>(`/variables?scope=${scope}`));
   useEffect(() => { load().catch((e) => ui.notify({ title: 'Lỗi', message: e.message, kind: 'error' })); /* eslint-disable-next-line */ }, [tab, ownerId]);
 
@@ -30,7 +34,27 @@ export function VariablesPage() {
     ui.notify({ title: 'Đã copy', message: `{{var.${key}}} — dán vào fetch để dùng lại.`, kind: 'success' });
   };
 
-  const entries = Object.entries(vars);
+  const rows: VarRow[] = useMemo(
+    () => Object.entries(vars).map(([key, v]) => ({ key, value: v.value, updatedAt: v.updatedAt, source: v.source })),
+    [vars],
+  );
+
+  const columns: DataListColumn<VarRow>[] = useMemo(() => [
+    { key: 'key', header: 'Key', value: (r) => r.key, render: (r) => <span className="mono">{r.key}</span> },
+    { key: 'value', header: 'Value', value: (r) => JSON.stringify(r.value), render: (r) => <span className="mono" style={{ display: 'inline-block', maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'bottom' }}>{JSON.stringify(r.value)}</span> },
+    { key: 'source', header: 'Source', value: (r) => r.source, render: (r) => <span className="badge">{r.source}</span>, width: 110 },
+    { key: 'updatedAt', header: 'Cập nhật', value: (r) => r.updatedAt, render: (r) => new Date(r.updatedAt).toLocaleString(), width: 170 },
+    {
+      key: 'actions', header: '', value: () => '', noExport: true, sortable: false, align: 'right', width: 90,
+      render: (r) => (
+        <div className="item-actions">
+          <Button iconOnly icon={Icon.copy({})} variant="ghost" tooltip="Copy tham chiếu {{var.key}} để dán vào fetch" onClick={() => copyRef(r.key)} />
+          <Button iconOnly icon={Icon.trash({})} variant="ghost" tooltip="Xóa biến (cần xác nhận)" onClick={() => del(r.key)} />
+        </div>
+      ),
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [scope]);
 
   return (
     <div>
@@ -38,34 +62,23 @@ export function VariablesPage() {
         <h1 className="page-title">Variables</h1>
         <span className="page-desc">Kho biến tái sử dụng · tham chiếu bằng {'{{var.key}}'}</span>
       </div>
-      <div className="toolbar">
-        <Button variant={tab === 'global' ? 'primary' : 'default'} icon={Icon.vars({})} tooltip="Biến dùng chung mọi owner" onClick={() => setTab('global')}>Global</Button>
-        <Button variant={tab === 'owner' ? 'primary' : 'default'} icon={Icon.vars({})} tooltip="Biến riêng của owner đang chọn (ưu tiên hơn global)" onClick={() => setTab('owner')} disabled={!ownerId}>Theo owner</Button>
-        <div className="toolbar__spacer" />
-        <Button icon={Icon.plus({})} variant="primary" tooltip="Thêm biến mới vào scope hiện tại" onClick={() => setEditOpen(true)}>Biến mới</Button>
-      </div>
 
-      {entries.length === 0 ? <div className="empty">Chưa có biến trong scope này.</div> : (
-        <table className="table">
-          <thead><tr><th>Key</th><th>Value</th><th>Source</th><th>Cập nhật</th><th style={{ width: 90 }}></th></tr></thead>
-          <tbody>
-            {entries.map(([k, v]) => (
-              <tr key={k}>
-                <td className="mono">{k}</td>
-                <td className="mono" style={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis' }}>{JSON.stringify(v.value)}</td>
-                <td><span className="badge">{v.source}</span></td>
-                <td>{new Date(v.updatedAt).toLocaleString()}</td>
-                <td>
-                  <div className="row" style={{ justifyContent: 'flex-end' }}>
-                    <Button iconOnly icon={Icon.copy({})} variant="ghost" tooltip="Copy tham chiếu {{var.key}} để dán vào fetch" onClick={() => copyRef(k)} />
-                    <Button iconOnly icon={Icon.trash({})} variant="ghost" tooltip="Xóa biến (cần xác nhận)" onClick={() => del(k)} />
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      <DataList
+        title={`variables-${scope}`}
+        columns={columns}
+        rows={rows}
+        rowKey={(r) => r.key}
+        ownerContext={tab === 'owner' ? ownerEmail : 'global'}
+        initialSort={{ key: 'updatedAt', dir: 'desc' }}
+        emptyText="Chưa có biến trong scope này."
+        toolbarExtra={
+          <>
+            <Button variant={tab === 'global' ? 'primary' : 'default'} icon={Icon.vars({})} tooltip="Biến dùng chung mọi owner" onClick={() => setTab('global')}>Global</Button>
+            <Button variant={tab === 'owner' ? 'primary' : 'default'} icon={Icon.vars({})} tooltip="Biến riêng của owner đang chọn (ưu tiên hơn global)" onClick={() => setTab('owner')} disabled={!ownerId}>Theo owner</Button>
+            <Button icon={Icon.plus({})} variant="primary" tooltip="Thêm biến mới vào scope hiện tại" onClick={() => setEditOpen(true)}>Biến mới</Button>
+          </>
+        }
+      />
 
       {editOpen && <VarModal scope={scope} onClose={() => setEditOpen(false)} onSaved={() => { setEditOpen(false); load(); }} ui={ui} />}
     </div>

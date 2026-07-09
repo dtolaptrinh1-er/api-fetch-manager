@@ -21,12 +21,18 @@ function config(): AppConfig {
     httpRetries: 2,
     httpMaxResponseBytes: 1_048_576,
     firebaseServiceAccount: serviceAccountBase64(),
+    buildSha: 'test',
+    buildTime: '2026-01-01T00:00:00.000Z',
+    repoUrl: 'https://github.com/test/repo',
+    envLabel: 'test',
+    redactExecutionValues: true,
     rtdb: {
       keys: 'https://keys.example.firebaseio.com',
       history: 'https://history.example.firebaseio.com',
       logs: 'https://logs.example.firebaseio.com',
       issues: 'https://issues.example.firebaseio.com',
       variables: 'https://variables.example.firebaseio.com',
+      resources: 'https://resources.example.firebaseio.com',
     },
   };
 }

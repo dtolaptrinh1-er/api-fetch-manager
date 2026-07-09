@@ -17,6 +17,8 @@ RUN npm install
 COPY backend/ ./
 # Copy FE build tĩnh từ stage 1
 COPY --from=fe /app/backend/public ./public
+# Copy tài liệu dịch vụ để Docs viewer đọc được trong image (addendum v1.6 §1)
+COPY docs/services ./docs/services
 RUN npm run build
 
 # ---- Stage 3: runtime (1 image duy nhất) ----
@@ -27,6 +29,7 @@ COPY --from=be /app/backend/package.json ./
 COPY --from=be /app/backend/node_modules ./node_modules
 COPY --from=be /app/backend/dist ./dist
 COPY --from=be /app/backend/public ./public
+COPY --from=be /app/backend/docs ./docs
 # Biến môi trường bắt buộc prefix API_FETCH_MANAGER_ (xem .env.example)
 EXPOSE 8080
 CMD ["node", "dist/server.js"]

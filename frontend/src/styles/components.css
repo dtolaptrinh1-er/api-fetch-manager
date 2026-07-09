@@ -641,8 +641,286 @@ body.inspecting .overlay {
  background: var(--bg-subtle);
 }
 
+/* ---------- DataList (addendum v1.4 §1) ---------- */
+.datalist__toolbar {
+ margin-bottom: var(--sp-2);
+}
+.datalist__sort {
+ color: var(--primary);
+ font-size: var(--fs-xs);
+}
+.table--compact th,
+.table--compact td {
+ height: 28px;
+ padding: var(--sp-1) var(--sp-2);
+}
+
+/* ---------- Status bar (addendum v1.4 §4) ---------- */
+.statusbar {
+ flex: 0 0 26px;
+ height: 26px;
+ display: flex;
+ align-items: center;
+ gap: var(--sp-3);
+ padding: 0 var(--sp-4);
+ border-top: 1px solid var(--border);
+ background: var(--bg-elevated);
+ font-size: var(--fs-xs);
+ color: var(--text-muted);
+ overflow-x: auto;
+ white-space: nowrap;
+}
+.statusbar__item {
+ display: inline-flex;
+ align-items: center;
+ gap: var(--sp-1);
+}
+.statusbar__item a {
+ font-family: var(--font-mono);
+}
+.statusbar__dot {
+ width: 7px;
+ height: 7px;
+ border-radius: 50%;
+ background: var(--text-muted);
+ flex: 0 0 7px;
+}
+.statusbar__dot--ok {
+ background: var(--success);
+}
+.statusbar__dot--warn {
+ background: var(--warning);
+}
+.statusbar__sep {
+ opacity: 0.4;
+}
+.statusbar__spacer {
+ flex: 1;
+}
+.statusbar__env {
+ text-transform: uppercase;
+ letter-spacing: 0.04em;
+ font-weight: var(--fw-medium);
+}
+
+/* ---------- Tabs (Services & Resources — addendum v1.4 §5) ---------- */
+.tabs {
+ display: flex;
+ gap: var(--sp-1);
+ border-bottom: 1px solid var(--border);
+ margin-bottom: var(--sp-3);
+ overflow-x: auto;
+ flex-wrap: nowrap;
+}
+.tab {
+ padding: var(--sp-2) var(--sp-3);
+ font-size: var(--fs-sm);
+ border: none;
+ background: transparent;
+ color: var(--text-muted);
+ cursor: pointer;
+ border-bottom: 2px solid transparent;
+ white-space: nowrap;
+ display: inline-flex;
+ align-items: center;
+ gap: var(--sp-1);
+}
+.tab:hover {
+ color: var(--text);
+}
+.tab.active {
+ color: var(--primary);
+ border-bottom-color: var(--primary);
+ font-weight: var(--fw-medium);
+}
+
+/* ---------- Owner combobox search (addendum v1.4 §2) ---------- */
+.owner-combobox {
+ position: relative;
+ width: 240px;
+ max-width: 40vw;
+}
+.owner-combobox__list {
+ position: absolute;
+ left: 0;
+ right: 0;
+ top: calc(100% + 4px);
+ background: var(--bg-elevated);
+ border: 1px solid var(--border);
+ border-radius: var(--radius-md);
+ box-shadow: var(--shadow-modal);
+ max-height: 320px;
+ overflow: auto;
+ z-index: var(--z-tooltip);
+}
+.owner-combobox__opt {
+ display: flex;
+ align-items: center;
+ justify-content: space-between;
+ gap: var(--sp-2);
+ padding: var(--sp-2) var(--sp-3);
+ font-size: var(--fs-sm);
+ cursor: pointer;
+}
+.owner-combobox__opt:hover,
+.owner-combobox__opt.active {
+ background: var(--bg-subtle);
+}
+.owner-combobox__opt .email {
+ overflow: hidden;
+ text-overflow: ellipsis;
+ white-space: nowrap;
+}
+
+/* ---------- Docs viewer side-panel (addendum v1.6 §1) ---------- */
+.docs-panel {
+ position: fixed;
+ top: 48px;
+ right: 0;
+ bottom: 26px;
+ width: min(480px, 92vw);
+ background: var(--bg-elevated);
+ border-left: 1px solid var(--border);
+ box-shadow: var(--shadow-modal);
+ z-index: var(--z-overlay);
+ display: flex;
+ flex-direction: column;
+ transform: translateX(0);
+ transition: transform var(--motion-base);
+}
+.docs-panel__head {
+ display: flex;
+ align-items: center;
+ gap: var(--sp-2);
+ padding: var(--sp-2) var(--sp-3);
+ border-bottom: 1px solid var(--border);
+}
+.docs-panel__head .title {
+ font-weight: var(--fw-medium);
+ flex: 1;
+ min-width: 0;
+ overflow: hidden;
+ text-overflow: ellipsis;
+ white-space: nowrap;
+}
+.docs-panel__toc {
+ padding: var(--sp-2) var(--sp-3);
+ border-bottom: 1px solid var(--border);
+ max-height: 140px;
+ overflow: auto;
+ display: flex;
+ flex-direction: column;
+ gap: 2px;
+}
+.docs-panel__toc a {
+ font-size: var(--fs-xs);
+ color: var(--text-muted);
+ text-decoration: none;
+ cursor: pointer;
+}
+.docs-panel__toc a:hover {
+ color: var(--primary);
+}
+.docs-panel__toc a.lvl-3 {
+ padding-left: var(--sp-3);
+}
+.docs-panel__body {
+ flex: 1;
+ overflow: auto;
+ padding: var(--sp-3) var(--sp-4);
+ font-size: var(--fs-sm);
+ line-height: 1.55;
+}
+.docs-md h1 { font-size: var(--fs-title); font-weight: var(--fw-medium); margin: var(--sp-3) 0 var(--sp-2); }
+.docs-md h2 { font-size: var(--fs-lg); font-weight: var(--fw-medium); margin: var(--sp-4) 0 var(--sp-2); border-bottom: 1px solid var(--border); padding-bottom: var(--sp-1); }
+.docs-md h3 { font-size: var(--fs-base); font-weight: var(--fw-medium); margin: var(--sp-3) 0 var(--sp-1); }
+.docs-md p { margin: var(--sp-2) 0; }
+.docs-md ul { margin: var(--sp-2) 0; padding-left: var(--sp-5); }
+.docs-md li { margin: 2px 0; }
+.docs-md a { color: var(--primary); }
+.docs-md code {
+ font-family: var(--font-mono);
+ font-size: var(--fs-xs);
+ background: var(--bg-subtle);
+ padding: 1px 4px;
+ border-radius: 3px;
+}
+.docs-md pre {
+ position: relative;
+ background: var(--bg);
+ border: 1px solid var(--border);
+ border-radius: var(--radius-md);
+ padding: var(--sp-3);
+ overflow: auto;
+ margin: var(--sp-2) 0;
+}
+.docs-md pre code {
+ background: none;
+ padding: 0;
+ white-space: pre;
+ display: block;
+}
+.docs-md pre .use-curl {
+ position: absolute;
+ top: var(--sp-1);
+ right: var(--sp-1);
+}
+.docs-md table { width: 100%; border-collapse: collapse; font-size: var(--fs-xs); margin: var(--sp-2) 0; }
+.docs-md th, .docs-md td { border: 1px solid var(--border); padding: 4px 8px; text-align: left; }
+
+/* ---------- Self-Test panel (addendum v1.5) ---------- */
+.selftest-summary {
+ display: flex;
+ gap: var(--sp-3);
+ margin-bottom: var(--sp-3);
+ flex-wrap: wrap;
+}
+.selftest-stat {
+ border: 1px solid var(--border);
+ border-radius: var(--radius-md);
+ padding: var(--sp-2) var(--sp-4);
+ background: var(--bg-elevated);
+ min-width: 100px;
+}
+.selftest-stat .num { font-size: var(--fs-title); font-weight: var(--fw-medium); }
+.selftest-stat .lbl { font-size: var(--fs-xs); color: var(--text-muted); }
+.selftest-stat.ok .num { color: var(--success); }
+.selftest-stat.fail .num { color: var(--danger); }
+.assertion-list { display: flex; flex-direction: column; gap: 2px; }
+.assertion-row {
+ display: flex;
+ align-items: center;
+ gap: var(--sp-2);
+ font-size: var(--fs-xs);
+ padding: 2px 0;
+}
+.assertion-row .mk { flex: 0 0 16px; }
+.assertion-row.pass .mk { color: var(--success); }
+.assertion-row.fail .mk { color: var(--danger); }
+.diff-box {
+ font-family: var(--font-mono);
+ font-size: var(--fs-xs);
+ background: var(--bg);
+ border: 1px solid var(--border);
+ border-radius: var(--radius-sm);
+ padding: var(--sp-2);
+ white-space: pre-wrap;
+ word-break: break-word;
+ margin-top: var(--sp-1);
+}
+
+/* item action cluster trong Services */
+.item-actions { display: flex; gap: var(--sp-1); justify-content: flex-end; }
+
 /* ---------- Responsive ([UI] 2) ---------- */
 @media (max-width: 767px) {
+ .docs-panel {
+ top: 48px;
+ width: 100vw;
+ }
+ .owner-combobox {
+ width: 160px;
+ }
  .overlay {
  padding: var(--sp-2);
  }

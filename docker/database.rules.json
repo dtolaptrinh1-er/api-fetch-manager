@@ -40,5 +40,13 @@
         "$scope": { ".indexOn": ["updatedAt"] }
       }
     }
+  },
+  "rtdb-resources": {
+    "rules": {
+      ".read": false,
+      ".write": false,
+      "items": { ".indexOn": ["ownerId", "service", "resourceType", "updatedAt"] },
+      "services": { ".indexOn": ["host", "label"] }
+    }
   }
 }

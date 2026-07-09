@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { api, type FetchTemplate, type FlowStep, type FlowInput, type FetchTestStepResult } from '../api/api';
 import { useApp } from '../lib/appStore';
 import { useUI } from '../components/ui';
@@ -9,6 +9,8 @@ import { Icon } from '../components/Icon';
 import { Combobox } from '../components/Combobox';
 import { KeyPicker } from '../components/KeyPicker';
 import { ExecuteModal } from '../features/execute/ExecuteModal';
+import { DataList, type DataListColumn } from '../components/DataList';
+import { useDocs } from '../features/docs/DocsPanel';
 
 type UI = ReturnType<typeof useUI>;
 
@@ -22,13 +24,28 @@ function blankTemplate(): FetchTemplate {
 export function FetchBuilderPage() {
  const { ownerId } = useApp();
  const ui = useUI();
+ const docs = useDocs();
  const [templates, setTemplates] = useState<FetchTemplate[]>([]);
  const [editing, setEditing] = useState<FetchTemplate | null>(null);
  const [executing, setExecuting] = useState<FetchTemplate | null>(null);
  const [presetOpen, setPresetOpen] = useState(false);
+ const [seedCurl, setSeedCurl] = useState<string | null>(null);
 
  const load = async () => setTemplates(await api.get<FetchTemplate[]>('/templates'));
  useEffect(() => { load().catch((e) => ui.notify({ title: 'Lỗi', message: e.message, kind: 'error' })); }, []);
+
+ // Đăng ký handler "Dùng mẫu" từ Docs panel: nhận curl → mở flow mới + tự parse thành step.
+ useEffect(() => {
+ docs.setUseCodeHandler((code, lang) => {
+ const isCurl = /\bcurl\b/.test(code) || lang === 'bash' || lang === 'sh';
+ if (!isCurl) return ui.notify({ title: 'Không phải curl', message: 'Chỉ dùng được block lệnh curl để tạo mẫu flow.', kind: 'warning' });
+ setEditing(blankTemplate());
+ setSeedCurl(code);
+ ui.notify({ title: 'Đã nạp mẫu từ tài liệu', message: 'Curl sẽ được parse thành step trong flow mới.', kind: 'info' });
+ });
+ return () => docs.setUseCodeHandler(null);
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ }, []);
 
  const del = async (t: FetchTemplate) => {
  const okc = await ui.confirm({ title: 'Xóa template', message: <>Xóa <b>{t.name}</b>? Không thể hoàn tác.</>, danger: true, confirmLabel: 'Xóa' });
@@ -43,6 +60,25 @@ export function FetchBuilderPage() {
  setExecuting(t);
  };
 
+ const columns: DataListColumn<FetchTemplate>[] = useMemo(() => [
+ { key: 'name', header: 'Tên', value: (t) => t.name },
+ { key: 'service', header: 'Service', value: (t) => t.service, width: 150 },
+ { key: 'business', header: 'Business', value: (t) => t.business, width: 150 },
+ { key: 'steps', header: 'Steps', value: (t) => t.steps?.length ?? 0, align: 'right', width: 80 },
+ {
+ key: 'actions', header: '', value: () => '', noExport: true, sortable: false, align: 'right', width: 120,
+ render: (t) => (
+ <div className="item-actions">
+ <Button iconOnly icon={Icon.play({})} variant="ghost" tooltip="Execute flow này (gọi API thật, có thể có side-effect)" onClick={() => execute(t)} />
+ <Button iconOnly icon={Icon.info({})} variant="ghost" tooltip="Mở tài liệu API của service này" onClick={() => t.service && docs.open(t.service)} />
+ <Button iconOnly icon={Icon.edit({})} variant="ghost" tooltip="Sửa flow" onClick={() => setEditing(t)} />
+ <Button iconOnly icon={Icon.trash({})} variant="ghost" tooltip="Xóa flow (cần xác nhận)" onClick={() => del(t)} />
+ </div>
+ ),
+ },
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ ], [ownerId]);
+
  return (
  <div>
  <div className="page-head">
@@ -50,37 +86,21 @@ export function FetchBuilderPage() {
  <span className="page-desc">Tạo API tái sử dụng từ curl · flow nhiều step · trích xuất dữ liệu · mẫu dùng chung</span>
  </div>
 
- <div className="toolbar">
- <Button icon={Icon.plus({})} variant="primary" tooltip="Tạo flow mới từ đầu (nhiều step tuần tự)" onClick={() => setEditing(blankTemplate())}>Flow mới</Button>
+ <DataList
+ title="fetch-templates"
+ columns={columns}
+ rows={templates}
+ rowKey={(t) => t.id}
+ emptyText='Chưa có template. Bấm "Flow mới" hoặc "Tạo từ mẫu".'
+ toolbarExtra={
+ <>
+ <Button icon={Icon.plus({})} variant="primary" tooltip="Tạo flow mới từ đầu (nhiều step tuần tự)" onClick={() => { setSeedCurl(null); setEditing(blankTemplate()); }}>Flow mới</Button>
  <Button icon={Icon.copy({})} tooltip="Tạo flow từ mẫu có sẵn (GitHub, Cloudflare...) — dùng chung nhiều owner" onClick={() => setPresetOpen(true)}>Tạo từ mẫu</Button>
- </div>
+ </>
+ }
+ />
 
- {templates.length === 0 ? (
- <div className="empty">Chưa có template. Bấm "Flow mới" hoặc "Tạo từ mẫu".</div>
- ) : (
- <table className="table">
- <thead><tr><th>Tên</th><th>Service</th><th>Business</th><th>Steps</th><th style={{ width: 130 }}></th></tr></thead>
- <tbody>
- {templates.map((t) => (
- <tr key={t.id}>
- <td>{t.name}</td>
- <td>{t.service}</td>
- <td>{t.business}</td>
- <td>{t.steps?.length ?? 0}</td>
- <td>
- <div className="row" style={{ justifyContent: 'flex-end' }}>
- <Button iconOnly icon={Icon.play({})} variant="ghost" tooltip="Execute flow này (gọi API thật, có thể có side-effect)" onClick={() => execute(t)} />
- <Button iconOnly icon={Icon.edit({})} variant="ghost" tooltip="Sửa flow" onClick={() => setEditing(t)} />
- <Button iconOnly icon={Icon.trash({})} variant="ghost" tooltip="Xóa flow (cần xác nhận)" onClick={() => del(t)} />
- </div>
- </td>
- </tr>
- ))}
- </tbody>
- </table>
- )}
-
- {editing && <BuilderModal initial={editing} ownerId={ownerId} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} ui={ui} />}
+ {editing && <BuilderModal initial={editing} ownerId={ownerId} seedCurl={seedCurl} onClose={() => { setEditing(null); setSeedCurl(null); }} onSaved={() => { setEditing(null); setSeedCurl(null); load(); }} ui={ui} />}
  {executing && ownerId && <ExecuteModal template={executing} ownerId={ownerId} onClose={() => setExecuting(null)} ui={ui} />}
  {presetOpen && <PresetPickerModal onClose={() => setPresetOpen(false)} onPick={(p) => { setPresetOpen(false); setEditing({ ...blankTemplate(), ...structuredClone(p), id: '', name: p.name + ' (copy)', createdAt: 0, updatedAt: 0 }); }} ui={ui} />}
  </div>
@@ -112,12 +132,33 @@ function PresetPickerModal({ onClose, onPick, ui }: { onClose: () => void; onPic
 }
 
 /* -------------------- Builder Modal (2 pane) -------------------- */
-function BuilderModal({ initial, ownerId, onClose, onSaved, ui }: { initial: FetchTemplate; ownerId: string | null; onClose: () => void; onSaved: () => void; ui: UI }) {
+function BuilderModal({ initial, ownerId, seedCurl, onClose, onSaved, ui }: { initial: FetchTemplate; ownerId: string | null; seedCurl?: string | null; onClose: () => void; onSaved: () => void; ui: UI }) {
  const [tpl, setTpl] = useState<FetchTemplate>(structuredClone(initial));
  const [activeStep, setActiveStep] = useState(0);
  const [curlOpen, setCurlOpen] = useState(false);
  const [jsOpen, setJsOpen] = useState(false);
  const [saving, setSaving] = useState(false);
+
+ // Nếu được nạp từ tài liệu (Dùng mẫu): tự parse curl thành step đầu tiên.
+ useEffect(() => {
+ if (!seedCurl) return;
+ (async () => {
+ try {
+ const r = await api.post<{ step: FlowStep; credentialRefs: { placeholder: string; key: string }[] }>('/templates/parse-curl', { curl: seedCurl });
+ setTpl((t) => ({
+ ...t,
+ // thay step rỗng khởi tạo bằng step parse được
+ steps: [r.step],
+ credentialRefs: [...(t.credentialRefs ?? []), ...r.credentialRefs],
+ }));
+ setActiveStep(0);
+ ui.notify({ title: 'Đã parse mẫu', message: `${r.step.method} ${r.step.urlTemplate}`, kind: 'success' });
+ } catch (e: any) {
+ ui.notify({ title: 'Không parse được mẫu', message: e.message, kind: 'error' });
+ }
+ })();
+ // eslint-disable-next-line react-hooks/exhaustive-deps
+ }, []);
 
  // Danh mục dùng chung cho 3 field
  const [cat, setCat] = useState<{ flowName: string[]; service: string[]; business: string[] }>({ flowName: [], service: [], business: [] });

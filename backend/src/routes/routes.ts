@@ -13,6 +13,9 @@ import { resolveTemplate } from '../engine/placeholder.js';
 import { listTransforms } from '../engine/transforms.js';
 import { runSandbox } from '../engine/sandbox.js';
 import { normalizeCredentialPayload } from '../lib/credential-import.js';
+import { buildCurl } from '../lib/curl-builder.js';
+import { runSelfTest, setLastRun, getLastRun } from '../modules/selftest.js';
+import { listDocs, readDoc, hostToSlug } from '../modules/docs.js';
 import { now } from '../lib/ids.js';
 
 export function registerRoutes(app: FastifyInstance, ctx: AppContext): void {
@@ -27,6 +30,22 @@ export function registerRoutes(app: FastifyInstance, ctx: AppContext): void {
   });
 
   app.get('/api/health', async () => ok({ status: 'up', storage: ctx.config.storageMode }));
+
+  /* ---------- Meta (status bar — addendum v1.4 §4) ---------- */
+  app.get('/api/meta', async () => {
+    const sha = ctx.config.buildSha;
+    const repo = ctx.config.repoUrl.replace(/\/$/, '');
+    return ok({
+      buildSha: sha,
+      buildShaShort: sha.slice(0, 7),
+      buildTime: ctx.config.buildTime,
+      commitUrl: sha && sha !== 'dev' ? `${repo}/commit/${sha}` : repo,
+      env: ctx.config.envLabel,
+      storage: ctx.config.storageMode,
+      startedAt: ctx.startedAt,
+      version: ctx.version,
+    });
+  });
 
   /* ---------- Owners & Credentials ([SYS] 4.1) ---------- */
   app.get('/api/owners', async () => ok(await store.listOwners(ctx)));
@@ -317,4 +336,72 @@ export function registerRoutes(app: FastifyInstance, ctx: AppContext): void {
       return ok({ error: e?.message ?? String(e) });
     }
   });
+
+  /* ---------- Fetch → cURL (addendum v1.5) ---------- */
+  app.post('/api/fetch/build-curl', async (req, reply) => {
+    const b = req.body as { method?: string; url?: string; headers?: Record<string, string>; body?: string; maskValues?: string[] };
+    if (!b?.url) return reply.code(400).send(err('url là bắt buộc'));
+    const curl = buildCurl(
+      { method: b.method ?? 'GET', url: b.url, headers: b.headers, body: b.body },
+      { maskValues: b.maskValues },
+    );
+    return ok({ curl });
+  });
+
+  /* ---------- Services catalog (Services & Resources — addendum v1.4 §5) ---------- */
+  app.get('/api/services', async () => {
+    await store.ensureDefaultServices(ctx);
+    return ok(await store.listServices(ctx));
+  });
+  app.post('/api/services', async (req, reply) => {
+    const b = req.body as { host?: string; label?: string; credentialKeyHint?: string };
+    if (!b?.host || !b?.label) return reply.code(400).send(err('host & label là bắt buộc'));
+    return ok(await store.saveService(ctx, { host: b.host, label: b.label, credentialKeyHint: b.credentialKeyHint }));
+  });
+  app.delete('/api/services/:id', async (req) => {
+    const { id } = req.params as { id: string };
+    await store.removeService(ctx, id);
+    return ok({ deleted: true });
+  });
+
+  /* ---------- Resource items (Services & Resources — addendum v1.4 §5) ---------- */
+  app.get('/api/resources', async (req) => {
+    const q = req.query as { ownerId?: string; service?: string; resourceType?: string };
+    return ok(await store.listResources(ctx, q));
+  });
+  app.post('/api/resources', async (req, reply) => {
+    const b = req.body as { ownerId?: string; service?: string; resourceType?: string; label?: string; data?: Record<string, unknown> };
+    if (!b?.ownerId || !b?.service || !b?.resourceType || !b?.label)
+      return reply.code(400).send(err('ownerId, service, resourceType, label là bắt buộc'));
+    return ok(await store.saveResource(ctx, { ownerId: b.ownerId, service: b.service, resourceType: b.resourceType, label: b.label, data: b.data }));
+  });
+  app.put('/api/resources/:id', async (req) => {
+    const { id } = req.params as { id: string };
+    await store.updateResource(ctx, id, req.body as any);
+    return ok({ updated: true });
+  });
+  app.delete('/api/resources/:id', async (req) => {
+    const { id } = req.params as { id: string };
+    await store.removeResource(ctx, id);
+    return ok({ deleted: true });
+  });
+
+  /* ---------- Self-Test Mode (addendum v1.5) ---------- */
+  app.post('/api/selftest/run', async () => {
+    const run = await runSelfTest(ctx);
+    setLastRun(run);
+    return ok(run);
+  });
+  app.get('/api/selftest/results', async () => ok(getLastRun()));
+
+  /* ---------- Docs viewer (addendum v1.6 §1) ---------- */
+  app.get('/api/docs', async () => ok(listDocs()));
+  app.get('/api/docs/:slug', async (req, reply) => {
+    const { slug } = req.params as { slug: string };
+    // Cho phép truyền host (github.com) hoặc slug (github).
+    const content = readDoc(slug) ?? readDoc(hostToSlug(slug));
+    if (content === null) return reply.code(404).send(err('Không tìm thấy tài liệu'));
+    return ok({ slug, content });
+  });
 }
+

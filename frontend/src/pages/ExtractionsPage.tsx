@@ -1,16 +1,19 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { api, type ExtractionRecord } from '../api/api';
 import { useApp } from '../lib/appStore';
 import { useUI } from '../components/ui';
 import { Button } from '../components/Button';
 import { Input } from '../components/Field';
 import { Icon } from '../components/Icon';
+import { DataList, type DataListColumn } from '../components/DataList';
 
 export function ExtractionsPage() {
-  const { ownerId } = useApp();
+  const { ownerId, owners } = useApp();
   const ui = useUI();
   const [rows, setRows] = useState<ExtractionRecord[]>([]);
   const [service, setService] = useState('');
+
+  const ownerEmail = owners.find((o) => o.id === ownerId)?.email;
 
   const load = async () => {
     const q = new URLSearchParams();
@@ -27,33 +30,41 @@ export function ExtractionsPage() {
     ui.notify({ title: 'Đã pin', message: `${r.field} → {{var.${r.field}}}`, kind: 'success' });
   };
 
+  const columns: DataListColumn<ExtractionRecord>[] = useMemo(() => [
+    { key: 'field', header: 'Field', value: (r) => r.field, render: (r) => <span className="mono">{r.field}</span>, width: 150 },
+    { key: 'value', header: 'Value', value: (r) => JSON.stringify(r.value), render: (r) => <span className="mono" style={{ display: 'inline-block', maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', verticalAlign: 'bottom' }}>{JSON.stringify(r.value)}</span> },
+    { key: 'templateName', header: 'Template', value: (r) => r.templateName },
+    { key: 'service', header: 'Service', value: (r) => r.service, width: 130 },
+    { key: 'jsonPath', header: 'JSONPath', value: (r) => r.jsonPath, render: (r) => <span className="mono">{r.jsonPath}</span> },
+    { key: 'createdAt', header: 'Thời điểm', value: (r) => r.createdAt, render: (r) => new Date(r.createdAt).toLocaleString(), width: 170 },
+    {
+      key: 'actions', header: '', value: () => '', noExport: true, sortable: false, align: 'right', width: 50,
+      render: (r) => <Button iconOnly icon={Icon.pin({})} variant="ghost" tooltip="Pin giá trị này thành biến tái sử dụng (cần xác nhận)" onClick={() => pin(r)} />,
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], [ownerId]);
+
   return (
     <div>
       <div className="page-head">
         <h1 className="page-title">Extracted Data</h1>
         <span className="page-desc">Giá trị trích xuất từ các lần fetch · kèm template nguồn &amp; thời điểm</span>
       </div>
-      <div className="toolbar">
-        <Input placeholder="lọc service" value={service} onChange={(e) => setService(e.target.value)} style={{ width: 150 }} />
-        <Button icon={Icon.zap({})} tooltip="Áp dụng lọc" onClick={load}>Lọc</Button>
-      </div>
-      {rows.length === 0 ? <div className="empty">Chưa có dữ liệu trích xuất. Execute 1 flow có extract để tạo.</div> : (
-        <table className="table">
-          <thead><tr><th>Field</th><th>Value</th><th>Template</th><th>JSONPath</th><th>Thời điểm</th><th style={{ width: 60 }}></th></tr></thead>
-          <tbody>
-            {rows.map((r) => (
-              <tr key={r.id}>
-                <td className="mono">{r.field}</td>
-                <td className="mono" style={{ maxWidth: 240, overflow: 'hidden', textOverflow: 'ellipsis' }}>{JSON.stringify(r.value)}</td>
-                <td>{r.templateName}</td>
-                <td className="mono">{r.jsonPath}</td>
-                <td>{new Date(r.createdAt).toLocaleString()}</td>
-                <td><Button iconOnly icon={Icon.pin({})} variant="ghost" tooltip="Pin giá trị này thành biến tái sử dụng (cần xác nhận)" onClick={() => pin(r)} /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      <DataList
+        title="extracted-data"
+        columns={columns}
+        rows={rows}
+        rowKey={(r) => r.id}
+        ownerContext={ownerEmail}
+        initialSort={{ key: 'createdAt', dir: 'desc' }}
+        emptyText="Chưa có dữ liệu trích xuất. Execute 1 flow có extract để tạo."
+        toolbarExtra={
+          <>
+            <Input placeholder="lọc service (server)" value={service} onChange={(e) => setService(e.target.value)} style={{ width: 150 }} />
+            <Button icon={Icon.zap({})} tooltip="Áp dụng lọc phía server" onClick={() => load().catch((e) => ui.notify({ title: 'Lỗi', message: e.message, kind: 'error' }))}>Lọc</Button>
+          </>
+        }
+      />
     </div>
   );
 }

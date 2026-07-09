@@ -42,7 +42,16 @@ export interface AppConfig {
     logs?: string;
     issues?: string;
     variables?: string;
+    /** RTDB #6 — service/resource động (addendum v1.4 §5). */
+    resources?: string;
   };
+  /** Build metadata cho status bar (addendum v1.4 §4). */
+  buildSha: string;
+  buildTime: string;
+  /** Link tới commit trên repo (status bar). */
+  repoUrl: string;
+  /** Nhãn môi trường hiển thị ở status bar (dev/staging/prod). */
+  envLabel: string;
   /** Service Account JSON (base64) cho Firebase RTDB REST adapter. */
   firebaseServiceAccount?: string;
   /** Bearer token quản trị cho mọi endpoint /api ngoài /api/health. */
@@ -140,7 +149,12 @@ export function loadConfig(): AppConfig {
       logs: get('RTDB_LOGS_URL'),
       issues: get('RTDB_ISSUES_URL'),
       variables: get('RTDB_VARIABLES_URL'),
+      resources: get('RTDB_RESOURCES_URL'),
     },
+    buildSha: get('BUILD_SHA') ?? 'dev',
+    buildTime: get('BUILD_TIME') ?? new Date().toISOString(),
+    repoUrl: get('REPO_URL') ?? 'https://github.com/o861shelter-dot/api-fetch-manager',
+    envLabel: get('ENV_LABEL') ?? (storageMode === 'firebase' ? 'prod' : 'dev'),
     firebaseServiceAccount: get('FIREBASE_SA'),
     adminToken: get('ADMIN_TOKEN'),
     httpTimeoutMs: Number(get('HTTP_TIMEOUT_MS') ?? 15_000),
@@ -156,6 +170,7 @@ export function loadConfig(): AppConfig {
     required('RTDB_LOGS_URL');
     required('RTDB_ISSUES_URL');
     required('RTDB_VARIABLES_URL');
+    required('RTDB_RESOURCES_URL');
   }
 
   if (storageMode !== 'memory' && !config.adminToken) {

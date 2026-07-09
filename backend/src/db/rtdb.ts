@@ -21,7 +21,7 @@ import { join } from 'node:path';
 import type { AppConfig } from '../config/env.js';
 import { genId } from '../lib/ids.js';
 
-export type DbName = 'keys' | 'history' | 'logs' | 'issues' | 'variables';
+export type DbName = 'keys' | 'history' | 'logs' | 'issues' | 'variables' | 'resources';
 
 export interface QueryOptions {
   /** Lọc theo child key (giả lập orderByChild + equalTo của RTDB). */
@@ -341,9 +341,11 @@ export interface RtdbRegistry {
   logs: Db;
   issues: Db;
   variables: Db;
+  /** RTDB #6 — service/resource động (addendum v1.4 §5). */
+  resources: Db;
 }
 
-const DB_NAMES: DbName[] = ['keys', 'history', 'logs', 'issues', 'variables'];
+const DB_NAMES: DbName[] = ['keys', 'history', 'logs', 'issues', 'variables', 'resources'];
 
 export function createRtdb(config: AppConfig): RtdbRegistry {
   const firebaseTokens = config.storageMode === 'firebase' ? new FirebaseTokenProvider(parseFirebaseServiceAccount(config.firebaseServiceAccount)) : null;
@@ -354,6 +356,7 @@ export function createRtdb(config: AppConfig): RtdbRegistry {
     logs: config.rtdb.logs,
     issues: config.rtdb.issues,
     variables: config.rtdb.variables,
+    resources: config.rtdb.resources,
   };
 
   const make = (name: DbName): Db => {

@@ -16,6 +16,8 @@ import type {
  Issue,
  Variable,
  ExtractionRecord,
+ ServiceDef,
+ ResourceItem,
 } from '../lib/types.js';
 
 /* ---------------- Owners & Credentials (rtdb-keys) ---------------- */
@@ -348,3 +350,88 @@ export async function listExtractions(
  if (filter?.service) list = list.filter((e) => e.service === filter.service);
  return list.sort((a, b) => b.createdAt - a.createdAt);
 }
+
+/* ---------------- Services catalog (RTDB #6 resources/services — addendum v1.4 §5) ---------------- */
+
+/** Danh mục service mặc định, khớp docs/services/<host>.md. */
+const DEFAULT_SERVICES: Omit<ServiceDef, 'id' | 'createdAt' | 'updatedAt'>[] = [
+ { host: 'github.com', label: 'GitHub', credentialKeyHint: 'github.token' },
+ { host: 'cloudflare.com', label: 'Cloudflare', credentialKeyHint: 'cloudflare.token' },
+ { host: 'dpdns.org', label: 'DigitalPlat DNS', credentialKeyHint: 'dpdns.token' },
+ { host: 'tailscale.com', label: 'Tailscale', credentialKeyHint: 'tailscale.token' },
+ { host: 'supabase.com', label: 'Supabase', credentialKeyHint: 'supabase.token' },
+ { host: 'cron-job.org', label: 'cron-job.org', credentialKeyHint: 'cronjob.apiKey' },
+];
+
+export async function listServices(ctx: AppContext): Promise<ServiceDef[]> {
+ const map = await ctx.db.resources.query<ServiceDef>('services');
+ return Object.entries(map)
+ .map(([id, s]) => ({ ...s, id }))
+ .sort((a, b) => a.label.localeCompare(b.label));
+}
+export async function getService(ctx: AppContext, id: string): Promise<ServiceDef | null> {
+ const s = await ctx.db.resources.get<ServiceDef>(`services/${id}`);
+ return s ? { ...s, id } : null;
+}
+export async function saveService(
+ ctx: AppContext,
+ def: { host: string; label: string; credentialKeyHint?: string },
+): Promise<ServiceDef> {
+ const id = await ctx.db.resources.push('services', {
+ host: def.host,
+ label: def.label,
+ credentialKeyHint: def.credentialKeyHint ?? '',
+ createdAt: now(),
+ updatedAt: now(),
+ });
+ return (await getService(ctx, id))!;
+}
+export async function removeService(ctx: AppContext, id: string): Promise<void> {
+ await ctx.db.resources.remove(`services/${id}`);
+}
+/** Seed danh mục service mặc định nếu chưa có. */
+export async function ensureDefaultServices(ctx: AppContext): Promise<void> {
+ const existing = await listServices(ctx);
+ if (existing.length > 0) return;
+ for (const s of DEFAULT_SERVICES) await saveService(ctx, s);
+}
+
+/* ---------------- Resource items (RTDB #6 resources/items — addendum v1.4 §5) ---------------- */
+
+export async function listResources(
+ ctx: AppContext,
+ filter?: { ownerId?: string; service?: string; resourceType?: string },
+): Promise<ResourceItem[]> {
+ const map = await ctx.db.resources.query<ResourceItem>('items');
+ let list = Object.entries(map).map(([id, r]) => ({ ...r, id }));
+ if (filter?.ownerId) list = list.filter((r) => r.ownerId === filter.ownerId);
+ if (filter?.service) list = list.filter((r) => r.service === filter.service);
+ if (filter?.resourceType) list = list.filter((r) => r.resourceType === filter.resourceType);
+ return list.sort((a, b) => b.updatedAt - a.updatedAt);
+}
+export async function getResource(ctx: AppContext, id: string): Promise<ResourceItem | null> {
+ const r = await ctx.db.resources.get<ResourceItem>(`items/${id}`);
+ return r ? { ...r, id } : null;
+}
+export async function saveResource(
+ ctx: AppContext,
+ data: { ownerId: string; service: string; resourceType: string; label: string; data?: Record<string, unknown> },
+): Promise<ResourceItem> {
+ const id = await ctx.db.resources.push('items', {
+ ownerId: data.ownerId,
+ service: data.service,
+ resourceType: data.resourceType,
+ label: data.label,
+ data: data.data ?? {},
+ createdAt: now(),
+ updatedAt: now(),
+ });
+ return (await getResource(ctx, id))!;
+}
+export async function updateResource(ctx: AppContext, id: string, patch: Partial<ResourceItem>): Promise<void> {
+ await ctx.db.resources.update(`items/${id}`, { ...patch, updatedAt: now() });
+}
+export async function removeResource(ctx: AppContext, id: string): Promise<void> {
+ await ctx.db.resources.remove(`items/${id}`);
+}
+

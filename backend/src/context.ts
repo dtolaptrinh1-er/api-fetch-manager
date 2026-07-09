@@ -8,6 +8,10 @@ import { encrypt, decrypt, maskSecret, type EncryptedValue } from './lib/crypto.
 export interface AppContext {
   config: AppConfig;
   db: RtdbRegistry;
+  /** Thời điểm khởi tạo context (uptime cho status bar). */
+  startedAt: number;
+  /** Phiên bản app (từ package.json hoặc env). */
+  version: string;
   encrypt(plaintext: string): EncryptedValue;
   decrypt(payload: EncryptedValue): string;
   /** Giải mã an toàn: lỗi (sai key/hỏng dữ liệu) → trả null thay vì ném. */
@@ -22,6 +26,8 @@ export function createContext(): AppContext {
   return {
     config,
     db,
+    startedAt: Date.now(),
+    version: process.env.API_FETCH_MANAGER_VERSION ?? '1.0.0',
     encrypt: (p) => encrypt(p, config.encryptionKey),
     decrypt: dec,
     tryDecrypt: (p) => {

@@ -13,24 +13,29 @@ Hệ thống quản lý tập trung **API key của nhiều dịch vụ** (GitHu
 │         │ interface Db                       │
 └─────────┼───────────────────────────────────┘
           ▼
-  Storage adapter: memory | file | firebase(RTDB×5)
-  (keys · history · logs · issues · variables)
+  Storage adapter: memory | file | firebase(RTDB×6)
+  (keys · history · logs · issues · variables · resources)
 ```
 - **FE**: React + TypeScript + Vite. Build tĩnh, phục vụ bởi BE (1 image).
 - **BE**: Node + TypeScript + Fastify. Proxy giữa FE và storage, nơi thực thi fetch. FE không chạm storage trực tiếp.
-- **Storage**: interface `Db` với 3 adapter. Production dùng Google RTDB (5 DB tách biệt, `.indexOn` ở `docker/database.rules.json`).
+- **Storage**: interface `Db` với 3 adapter. Production dùng Google RTDB (6 DB tách biệt, `.indexOn` ở `docker/database.rules.json`).
 - **Crypto**: AES-256-GCM mã hoá credential at-rest.
 - **Sandbox**: `node:vm` cô lập (cấm network/fs/process/require, timeout 200ms).
 
 ## Tính năng chính
 - Quản lý credential theo owner (CRUD, 1 key nhiều giá trị, import/export). Giá trị **luôn mã hoá**, API trả **masked**.
-- **Fetch Builder / Flow**: paste curl → sinh step; flow nhiều step tuần tự, chia sẻ `context`; trích response JSONPath (nested/mảng/wildcard); pin biến.
+- **Fetch Builder / Flow**: paste curl → sinh step; flow nhiều step tuần tự, chia sẻ `context`; trích response JSONPath (nested/mảng/wildcard); pin biến; sinh cURL (mask secret).
 - **Placeholder Engine**: `{{source | transform}}` + advanced JS sandbox.
 - **Kho biến** (global + theo owner), **Extracted Data** view.
+- **Services & Resources**: tab động theo dịch vụ (RTDB #6), quản lý resource item theo owner, lấy biến / xóa theo item.
+- **Docs viewer**: side-panel tài liệu API từng dịch vụ (`docs/services/*.md`), có mục lục + nút “Dùng mẫu” đẩy curl thẳng vào Fetch Builder.
 - **History & Logs** (che token) để debug.
 - **Inspect Mode**: chọn nhiều element trên UI → tạo issue → export/copy Markdown.
 - **Issues** CRUD (bug/feature/task).
-- UI: responsive, 2 theme, font mảnh, **0 alert/confirm** trình duyệt (mọi thứ qua modal), button có icon+tooltip.
+- **Self-Test Mode**: chạy loạt kịch bản kiểm tra tính năng cốt lõi (crypto, placeholder, extract, sandbox, curl, CRUD) và hiển thị assertion pass/fail.
+- **DataList chuẩn hoá**: mọi danh sách có filter (toàn văn + theo cột) · sort · export JSON/CSV/PDF.
+- **Status bar**: commit (link) · thời điểm build · môi trường · storage · owner đang active · trạng thái backend.
+- UI: responsive, 2 theme, font mảnh, **0 alert/confirm** trình duyệt (mọi thứ qua modal), button có icon+tooltip, owner selector có tìm kiếm.
 
 ## Chạy nhanh
 ```bash
@@ -53,7 +58,7 @@ docker compose up -d --build
 
 ## Test
 ```bash
-npm test          # 63 tests / 11 files
+npm test          # 76 tests / 12 files
 ```
 
 ## Cấu trúc thư mục

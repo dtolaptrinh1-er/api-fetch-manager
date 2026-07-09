@@ -156,6 +156,69 @@ export interface ExtractionRecord {
  createdAt: number;
 }
 
+/* ---------------- Services & Resources (RTDB #6, addendum v1.4 §5) ---------------- */
+
+/** Định nghĩa 1 dịch vụ trong catalog (tab trong Services & Resources). */
+export interface ServiceDef {
+ id: string;
+ /** host chuẩn hóa, khớp docs/services/<host>.md (VD: github.com). */
+ host: string;
+ /** Nhãn hiển thị (VD: GitHub). */
+ label: string;
+ /** Key credential mặc định để gợi ý builder (VD: github.token). */
+ credentialKeyHint?: string;
+ createdAt: number;
+ updatedAt: number;
+}
+
+/** 1 resource item thuộc 1 service + owner (VD: 1 repo GitHub, 1 job cron-job.org). */
+export interface ResourceItem {
+ id: string;
+ ownerId: string;
+ service: string;
+ /** Loại resource (repo, job, zone, dns-record…). */
+ resourceType: string;
+ /** Nhãn ngắn hiển thị. */
+ label: string;
+ /** Payload thô của item (dùng để bơm context vào builder / lấy var). */
+ data: Record<string, unknown>;
+ createdAt: number;
+ updatedAt: number;
+}
+
+/* ---------------- Self-Test Mode (addendum v1.5) ---------------- */
+
+export interface SelfTestAssertion {
+ name: string;
+ pass: boolean;
+ expected?: unknown;
+ actual?: unknown;
+}
+
+export interface SelfTestScenarioResult {
+ scenarioId: string;
+ feature: string;
+ title: string;
+ /** Text/giá trị capture được từ các element trên form. */
+ captured: Record<string, unknown>;
+ /** curl sinh ra (cho nhóm fetch), credential đã masked. */
+ builtCurl?: string;
+ assertions: SelfTestAssertion[];
+ result: 'pass' | 'fail';
+ elementText?: string;
+}
+
+export interface SelfTestRun {
+ runId: string;
+ scope: string;
+ startedAt: number;
+ finishedAt: number;
+ total: number;
+ passed: number;
+ failed: number;
+ scenarios: SelfTestScenarioResult[];
+}
+
 /** Response chuẩn API: { ok, data?, error? } */
 export interface ApiOk<T> {
  ok: true;

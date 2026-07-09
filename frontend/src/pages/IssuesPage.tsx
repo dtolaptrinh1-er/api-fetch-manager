@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { api, type Issue } from '../api/api';
 import { useUI } from '../components/ui';
 import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
 import { Field, Input, Textarea, Select } from '../components/Field';
 import { Icon } from '../components/Icon';
+import { DataList, type DataListColumn } from '../components/DataList';
 
 export function IssuesPage() {
   const ui = useUI();
@@ -41,46 +42,52 @@ export function IssuesPage() {
 
   const blank = (): Issue => ({ id: '', type: 'bug', title: '', description: '', expectedResult: '', status: 'open', elements: [], createdAt: 0, updatedAt: 0 });
 
+  const columns: DataListColumn<Issue>[] = useMemo(() => [
+    { key: 'type', header: 'Loại', value: (i) => i.type, render: (i) => <span className={`badge ${i.type === 'bug' ? 'badge--danger' : 'badge--primary'}`}>{i.type}</span>, width: 90 },
+    { key: 'title', header: 'Tiêu đề', value: (i) => i.title },
+    { key: 'status', header: 'Status', value: (i) => i.status, render: (i) => <span className="badge">{i.status}</span>, width: 120 },
+    { key: 'elements', header: 'Elements', value: (i) => i.elements?.length ?? 0, align: 'right', width: 90 },
+    { key: 'createdAt', header: 'Tạo lúc', value: (i) => i.createdAt, render: (i) => (i.createdAt ? new Date(i.createdAt).toLocaleString() : '—'), width: 170 },
+    {
+      key: 'actions', header: '', value: () => '', noExport: true, sortable: false, align: 'right', width: 160,
+      render: (i) => (
+        <div className="item-actions">
+          <Button iconOnly icon={Icon.copy({})} variant="ghost" tooltip="Copy Markdown để giao cho agent thực hiện" onClick={() => markdown(i, true)} />
+          <Button iconOnly icon={Icon.list({})} variant="ghost" tooltip="Xem Markdown export" onClick={() => markdown(i, false)} />
+          <Button iconOnly icon={Icon.edit({})} variant="ghost" tooltip="Sửa issue" onClick={() => setEditing(i)} />
+          <Button iconOnly icon={Icon.trash({})} variant="ghost" tooltip="Xóa issue (cần xác nhận)" onClick={() => del(i)} />
+        </div>
+      ),
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  ], []);
+
   return (
     <div>
       <div className="page-head">
         <h1 className="page-title">Issues</h1>
         <span className="page-desc">Bug / feature / task · tạo từ Inspect Mode hoặc thủ công · export Markdown cho agent</span>
       </div>
-      <div className="toolbar">
-        <Button icon={Icon.plus({})} variant="primary" tooltip="Tạo issue thủ công (bug/feature/task)" onClick={() => setEditing(blank())}>Issue mới</Button>
-        <div className="toolbar__spacer" />
-        <Select value={type} onChange={(e) => setType(e.target.value)} style={{ width: 110 }}>
-          <option value="">mọi loại</option><option value="bug">bug</option><option value="feature">feature</option><option value="task">task</option>
-        </Select>
-        <Select value={status} onChange={(e) => setStatus(e.target.value)} style={{ width: 120 }}>
-          <option value="">mọi status</option><option value="open">open</option><option value="in_progress">in_progress</option><option value="resolved">resolved</option><option value="closed">closed</option>
-        </Select>
-      </div>
 
-      {issues.length === 0 ? <div className="empty">Chưa có issue. Bật Inspect Mode (🎯 trên thanh trên) hoặc tạo thủ công.</div> : (
-        <table className="table">
-          <thead><tr><th>Loại</th><th>Tiêu đề</th><th>Status</th><th>Elements</th><th style={{ width: 160 }}></th></tr></thead>
-          <tbody>
-            {issues.map((i) => (
-              <tr key={i.id}>
-                <td><span className={`badge ${i.type === 'bug' ? 'badge--danger' : 'badge--primary'}`}>{i.type}</span></td>
-                <td>{i.title}</td>
-                <td><span className="badge">{i.status}</span></td>
-                <td>{i.elements?.length ?? 0}</td>
-                <td>
-                  <div className="row" style={{ justifyContent: 'flex-end' }}>
-                    <Button iconOnly icon={Icon.copy({})} variant="ghost" tooltip="Copy Markdown để giao cho agent thực hiện" onClick={() => markdown(i, true)} />
-                    <Button iconOnly icon={Icon.list({})} variant="ghost" tooltip="Xem Markdown export" onClick={() => markdown(i, false)} />
-                    <Button iconOnly icon={Icon.edit({})} variant="ghost" tooltip="Sửa issue" onClick={() => setEditing(i)} />
-                    <Button iconOnly icon={Icon.trash({})} variant="ghost" tooltip="Xóa issue (cần xác nhận)" onClick={() => del(i)} />
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      <DataList
+        title="issues"
+        columns={columns}
+        rows={issues}
+        rowKey={(i) => i.id}
+        initialSort={{ key: 'createdAt', dir: 'desc' }}
+        emptyText="Chưa có issue. Bật Inspect Mode (🎯 trên thanh trên) hoặc tạo thủ công."
+        toolbarExtra={
+          <>
+            <Button icon={Icon.plus({})} variant="primary" tooltip="Tạo issue thủ công (bug/feature/task)" onClick={() => setEditing(blank())}>Issue mới</Button>
+            <Select value={type} onChange={(e) => setType(e.target.value)} style={{ width: 110 }}>
+              <option value="">mọi loại</option><option value="bug">bug</option><option value="feature">feature</option><option value="task">task</option>
+            </Select>
+            <Select value={status} onChange={(e) => setStatus(e.target.value)} style={{ width: 120 }}>
+              <option value="">mọi status</option><option value="open">open</option><option value="in_progress">in_progress</option><option value="resolved">resolved</option><option value="closed">closed</option>
+            </Select>
+          </>
+        }
+      />
 
       {editing && <IssueModal initial={editing} onClose={() => setEditing(null)} onSaved={() => { setEditing(null); load(); }} ui={ui} />}
     </div>
