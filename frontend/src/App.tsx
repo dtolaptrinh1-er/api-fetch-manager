@@ -58,6 +58,7 @@ function Shell() {
   };
 
   const groups = [...new Set(NAV.map((n) => n.group))];
+  const activeOwner = owners.find((o) => o.id === ownerId);
 
   return (
     <div className="app">
@@ -65,6 +66,20 @@ function Shell() {
         <button className="btn btn--ghost btn--icon menu-toggle" data-tooltip="Mở menu điều hướng" onClick={() => setDrawer((d) => !d)}>{Icon.menu({})}</button>
         <div className="topbar__logo">🍌 API Fetch Manager</div>
         <div className="topbar__spacer" />
+        {activeOwner && (
+          <span
+            data-tooltip="Owner đang thao tác (context toàn cục)"
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: 6,
+              padding: '2px 10px', borderRadius: 999,
+              border: '1px solid var(--border)', background: 'var(--bg-subtle)',
+              fontSize: 'var(--fs-xs)', color: 'var(--text-muted)', maxWidth: 220,
+            }}
+          >
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--success)', flex: '0 0 6px' }} />
+            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{activeOwner.email}</span>
+          </span>
+        )}
         <OwnerCombobox owners={owners} ownerId={ownerId} onSelect={setOwnerId} />
         <Button iconOnly icon={Icon.info({})} tooltip="Mở tài liệu dịch vụ (side-panel)" onClick={() => docs.open('github')} />
         <Button iconOnly icon={Icon.key({})} tooltip="Cấu hình Admin API token (bắt buộc khi backend bật auth)" onClick={() => { setTokenDraft(getAdminToken() ?? ''); setTokenOpen(true); }} />
@@ -73,7 +88,11 @@ function Shell() {
       </header>
 
       <div className="body">
-        <nav className={drawer ? 'sidebar open' : 'sidebar'}>
+        <nav className={drawer ? 'sidebar open' : 'sidebar'} style={{ display: 'flex', flexDirection: 'column' }}>
+          <div className="sidebar__brand" style={{ padding: 'var(--sp-3)', borderBottom: '1px solid var(--border)', marginBottom: 'var(--sp-2)' }}>
+            <div style={{ color: 'var(--primary)', fontWeight: 'var(--fw-medium)', fontSize: 'var(--fs-lg)' }}>API Fetch Manager</div>
+            <div style={{ color: 'var(--text-muted)', fontSize: '10px', textTransform: 'uppercase', letterSpacing: '0.12em', fontWeight: 'var(--fw-medium)' }}>v2 · stitch</div>
+          </div>
           {groups.map((g) => (
             <div key={g}>
               <div className="sidebar__group-title">{g}</div>
@@ -89,6 +108,19 @@ function Shell() {
               ))}
             </div>
           ))}
+          <div
+            className="sidebar__health"
+            style={{
+              marginTop: 'auto', padding: 'var(--sp-3)', borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border)', background: 'var(--bg-subtle)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+              <span style={{ fontSize: '10px', fontWeight: 'var(--fw-medium)', color: 'var(--text-muted)', letterSpacing: '0.04em' }}>SYSTEM HEALTHY</span>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--success)' }} />
+            </div>
+            <div className="mono" style={{ color: 'var(--primary)' }}>{activeOwner ? activeOwner.email : 'chưa chọn owner'}</div>
+          </div>
         </nav>
 
         <main className="content">

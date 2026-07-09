@@ -1,0 +1,116 @@
+/* stitch-shell.css — chi tiết shell theo thiết kế Stitch (layout_frame).
+   File độc lập, chỉ bổ sung visual; import 1 lần trong App.tsx. Không đổi logic. */
+
+/* Row hover tint emerald giống Stitch (.data-table-row:hover rgba(96,236,168,.04)) */
+.table tr:hover td {
+  background: var(--row-hover, var(--bg-subtle)) !important;
+}
+
+/* Topbar: pill "Active: owner" (Stitch hiển owner đang thao tác) */
+.topbar__active {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  padding: 2px var(--sp-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.topbar__active .lbl {
+  color: var(--text-muted);
+}
+.topbar__active .val {
+  color: var(--primary);
+  font-family: var(--font-mono);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.topbar__active .dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--success);
+  flex: 0 0 6px;
+}
+
+/* Sidebar: khuôn cột + nút thu gọn + card System Healthy đáy (Stitch) */
+.sidebar {
+  display: flex;
+  flex-direction: column;
+}
+.sidebar__nav {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+.sidebar__brand {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--sp-2) var(--sp-3);
+  margin-bottom: var(--sp-1);
+}
+.sidebar__brand .ver {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+}
+.sidebar__collapse {
+  margin-left: auto;
+}
+
+.sidebar__health {
+  margin-top: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--sp-2) var(--sp-3);
+  background: var(--bg-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.sidebar__health .hd {
+  display: flex;
+  align-items: center;
+  gap: var(--sp-1);
+  font-size: var(--fs-xs);
+  font-weight: var(--fw-medium);
+  color: var(--text);
+}
+.sidebar__health .hd .dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--success);
+  flex: 0 0 7px;
+}
+.sidebar__health .sub {
+  font-size: var(--fs-xs);
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+/* Trạng thái thu gọn: chỉ hiện icon (desktop) */
+@media (min-width: 768px) {
+  .sidebar.is-collapsed {
+    width: 60px;
+    flex: 0 0 60px;
+  }
+  .sidebar.is-collapsed .nav-item {
+    justify-content: center;
+  }
+  .sidebar.is-collapsed .nav-item span.lbl,
+  .sidebar.is-collapsed .sidebar__group-title,
+  .sidebar.is-collapsed .sidebar__health .sub,
+  .sidebar.is-collapsed .sidebar__health .hd span:not(.dot),
+  .sidebar.is-collapsed .sidebar__brand .brand-text,
+  .sidebar.is-collapsed .sidebar__brand .ver {
+    display: none;
+  }
+}
